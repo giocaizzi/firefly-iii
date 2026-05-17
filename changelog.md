@@ -3,13 +3,15 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
-## v6.7.0 - 2026-05-17
+## v6.7.0 - 2026-05-18
 
-<!-- summary: Adds an MCP (Model Context Protocol) endpoint for agentic AI access at /api/v1/mcp, gated behind the new allow_mcp feature flag (default ON). -->
+<!-- summary: Adds an MCP (Model Context Protocol) endpoint for agentic AI access at /api/v1/mcp, with MCP-spec OAuth (Passport-backed) for client discovery + consent, gated behind the new allow_mcp feature flag (default ON). -->
 
 ### Added
 
-- New MCP endpoint at `/api/v1/mcp` exposing 25 tools (read, search, aggregate, write) and 8 resources (static catalogs and user snapshots) to AI agents over the Model Context Protocol. Authentication reuses Laravel Passport Personal Access Tokens. See [`docs/mcp.md`](docs/mcp.md) for setup and the full inventory.
+- New MCP endpoint at `/api/v1/mcp` exposing 25 tools (read, search, aggregate, write) and 8 resources (static catalogs and user snapshots) to AI agents over the Model Context Protocol. See [`docs/mcp.md`](docs/mcp.md) for setup and the full inventory.
+- MCP-spec OAuth on the endpoint: RFC 9728 protected-resource metadata, RFC 8414 authorization-server metadata, and RFC 7591 Dynamic Client Registration are served via `laravel/mcp`'s `Mcp::oauthRoutes()` helper, backed by the existing Laravel Passport authorization server. A new `mcp:use` scope gates the route; Passport-issued bearer tokens (including legacy Personal Access Tokens) carrying that scope are accepted.
+- New `config/mcp.php` exposing `redirect_domains`, `custom_schemes`, and `authorization_server` knobs. The shipped defaults tighten `redirect_domains` to `['https://claude.ai', 'http://localhost', 'http://127.0.0.1']` (claude.ai + loopback) instead of the upstream-default `['*']`.
 - New `allow_mcp` instance flag (default `true`) gating the MCP endpoint. When disabled the route returns `404`.
 - New composite index on `journal_meta(name, data(191))` to back the `mcp_idempotency_key` lookup used by MCP write tools.
 
