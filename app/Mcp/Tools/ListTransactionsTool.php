@@ -28,6 +28,7 @@ use Carbon\Carbon;
 use FireflyIII\Enums\TransactionTypeEnum;
 use FireflyIII\Helpers\Collector\GroupCollectorInterface;
 use FireflyIII\Repositories\Account\AccountRepositoryInterface;
+use FireflyIII\Support\JsonApi\Enrichments\TransactionGroupEnrichment;
 use FireflyIII\Transformers\TransactionGroupTransformer;
 use FireflyIII\User;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
@@ -86,8 +87,12 @@ final class ListTransactionsTool extends AbstractMcpTool
 
         $paginator = $collector->getPaginatedGroups();
 
+        $enrichment = new TransactionGroupEnrichment();
+        $enrichment->setUser($user);
+        $groups = $enrichment->enrich($paginator->getCollection());
+
         $transformer = app(TransactionGroupTransformer::class);
-        $resource    = new FractalCollection($paginator->getCollection(), $transformer, 'transactions');
+        $resource    = new FractalCollection($groups, $transformer, 'transactions');
         $resource->setPaginator(new IlluminatePaginatorAdapter($paginator));
 
         $document = $this->jsonApiManager()->createData($resource)->toArray();

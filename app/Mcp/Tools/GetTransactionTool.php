@@ -26,6 +26,7 @@ namespace FireflyIII\Mcp\Tools;
 
 use FireflyIII\Helpers\Collector\GroupCollectorInterface;
 use FireflyIII\Repositories\TransactionGroup\TransactionGroupRepositoryInterface;
+use FireflyIII\Support\JsonApi\Enrichments\TransactionGroupEnrichment;
 use FireflyIII\Transformers\TransactionGroupTransformer;
 use FireflyIII\User;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
@@ -62,6 +63,10 @@ final class GetTransactionTool extends AbstractMcpTool
         if (null === $selected) {
             return Response::error('Transaction not found.');
         }
+
+        $enrichment = new TransactionGroupEnrichment();
+        $enrichment->setUser($user);
+        $selected = $enrichment->enrichSingle($selected);
 
         $transformer = app(TransactionGroupTransformer::class);
         $resource    = new Item($selected, $transformer, 'transactions');

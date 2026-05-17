@@ -25,6 +25,7 @@ declare(strict_types=1);
 namespace FireflyIII\Mcp\Tools;
 
 use Carbon\Carbon;
+use FireflyIII\Support\JsonApi\Enrichments\TransactionGroupEnrichment;
 use FireflyIII\Support\Search\SearchInterface;
 use FireflyIII\Transformers\TransactionGroupTransformer;
 use FireflyIII\User;
@@ -64,8 +65,12 @@ final class SearchTransactionsTool extends AbstractMcpTool
 
         $groups = $searcher->searchTransactions();
 
+        $enrichment = new TransactionGroupEnrichment();
+        $enrichment->setUser($user);
+        $transactions = $enrichment->enrich($groups->getCollection());
+
         $transformer = app(TransactionGroupTransformer::class);
-        $resource    = new FractalCollection($groups->getCollection(), $transformer, 'transactions');
+        $resource    = new FractalCollection($transactions, $transformer, 'transactions');
         $resource->setPaginator(new IlluminatePaginatorAdapter($groups));
 
         $document = $this->jsonApiManager()->createData($resource)->toArray();
