@@ -142,7 +142,10 @@ final class FireflyServer extends Server
 
     protected string $instructions = <<<'MARKDOWN'
         Firefly III personal-finance MCP server. Tools and resources operate on the
-        authenticated user's data, scoped via Passport Personal Access Tokens.
+        authenticated user's data. Auth is MCP-spec OAuth (RFC 8414 / RFC 9728 / RFC 7591)
+        backed by Laravel Passport — clients discover the auth server via the
+        /.well-known/oauth-* endpoints, register via /oauth/register, and present
+        a bearer access token carrying the `mcp:use` scope.
         MARKDOWN;
 
     public function __construct(\Laravel\Mcp\Server\Contracts\Transport $transport)
