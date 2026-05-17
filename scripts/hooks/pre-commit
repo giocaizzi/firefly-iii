@@ -1,20 +1,21 @@
 #!/usr/bin/env bash
 #
-# pre-commit hook - WIP_MCP D-031.
+# pre-commit hook - WIP_MCP D-031 (scaled back per user instruction).
 #
-# Runs Mago format (autofix), Mago lint, PHPStan, and the unit-test suite.
-# Aborts the commit on any non-zero status. Install via scripts/install-hooks.sh.
+# The original D-031 scope (mago format + lint + phpstan + unit tests) was
+# repo-wide and tripped on pre-existing formatting and analysis debt unrelated
+# to the current commit. Scoping the static checks to staged files alone is
+# unreliable (mago overrides mago.toml; phpstan misses cross-file errors), so
+# the hook only runs the unit-test suite — the one gate that's fast, scoped to
+# behavior, and unaffected by repo-wide debt.
+#
+# Mago format / lint and PHPStan must be run manually before opening a PR;
+# the upstream CI workflow enforces them on the full tree.
+#
+# Skipping this hook is not allowed; --no-verify is forbidden.
+# Install via scripts/install-hooks.sh.
 #
 set -euo pipefail
-
-echo "==> mago format"
-./vendor/bin/mago format
-
-echo "==> mago lint"
-./vendor/bin/mago lint
-
-echo "==> phpstan"
-vendor/bin/phpstan analyse -c .ci/phpstan.neon --no-progress
 
 echo "==> unit tests"
 composer unit-test
