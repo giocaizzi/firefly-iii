@@ -76,7 +76,8 @@ Format: ID · Status · Decision · Why · Alternatives considered · Date.
 - **Implication:** Write tools touch the existing `TransactionGroupFactory` / `TransactionJournalFactory`, must respect repository user-scoping (C9), must emit audit log entries (C12). Each write tool is annotated `#[IsDestructive]` (or absent `#[IsReadOnly]`) per MCP spec.
 - **Date:** 2026-05-17.
 
-### D-005 · DECIDED · Auth: existing Passport Personal Access Tokens via `auth:api`
+### D-005 · SUPERSEDED by D-039 · Auth: existing Passport Personal Access Tokens via `auth:api`
+- **Status:** Superseded on 2026-05-18 by [D-039](#d-039--decided--auth-mcp-spec-oauth-via-mcpoauthroutes--mcpuse-scope-supersedes-d-005). End-to-end testing against claude.ai (web) showed PAT-Bearer + Cloudflare Access service-token headers cannot be configured in claude.ai's custom-connector UI (OAuth-only). Sticking with PAT closes off the web client. Reversing to MCP-spec OAuth, which `laravel/mcp` v0.7.0 already supports turn-key.
 - **Decision:** MCP route protected by `->middleware('auth:api')`. Clients send an existing Firefly III PAT in the `Authorization: Bearer …` header. No new OAuth client flow, no `mcp:use` scope advertisement.
 - **Why (user):** Reuse what's already there; zero new auth surface.
 - **Discarded:** `Mcp::oauthRoutes()` with `mcp:use` (adds OAuth discovery + dynamic-client-registration endpoints, larger upstream surface); hybrid (testing burden).
@@ -363,6 +364,70 @@ _All design questions resolved as of D-036. §4 and §5 are LOCKED. Next step: u
 - **Discarded:** Full REST `chart_type` enum exposure; drop ChartData entirely.
 - **Implication:** Teammate B locates the existing `/api/v1/chart/*` controllers, identifies the three target chart endpoints, and lifts their logic into `app/Mcp/Support/Aggregates/` support classes — NO HTTP-layer coupling. If any of the three chart_types turns out to have an awkward existing implementation, teammate B documents and we revisit (do not ship a broken chart_type).
 - **Date:** 2026-05-17.
+
+### D-039 · DECIDED · Auth: MCP-spec OAuth via `Mcp::oauthRoutes()` + `mcp:use` scope (supersedes D-005)
+- **Decision:** MCP route stays on the `auth:api` guard (Passport-driven) but gains scope enforcement via `Passport\Http\Middleware\CheckToken::using('mcp:use')`. `Mcp::oauthRoutes()` is called once in `routes/ai.php` to register the RFC 8414 / RFC 9728 well-known discovery docs and the RFC 7591 Dynamic Client Registration endpoint at `/oauth/register`. The `mcp:use` scope is registered automatically by `laravel/mcp`'s `ensureMcpScope()` helper (no manual `Passport::tokensCan` needed).
+- **Why (user):** Need claude.ai (web custom-connector) to work alongside Claude Desktop and Claude Code under a single auth chain. Custom connectors only support OAuth — no arbitrary auth headers — so PAT + Cloudflare Access service tokens cannot make it through that UI. OAuth is the lingua franca across all three clients.
+- **Discarded:** (a) Cloudflare IP-allowlist bypass for Anthropic egress (workable but drift-prone and weakens perimeter); (b) reverse-proxy translating OAuth → CF Access service-token headers (new attack surface, new service to host); (c) keeping PAT-only and forgoing claude.ai (cuts the most ergonomic surface).
+- **Implication:**
+  - `routes/ai.php` gains exactly one new top-level line (`Mcp::oauthRoutes();`) and one middleware addition (`CheckToken::using('mcp:use')`) — no other server-side code changes required.
+  - `config/mcp.php` must be published via `php artisan vendor:publish --tag=mcp-config` and tightened: `redirect_domains` pinned to `['https://claude.ai', 'http://localhost', 'http://127.0.0.1']`, `authorization_server` pinned to `env('APP_URL')`.
+  - Firefly's existing `Passport::authorizationView('auth.oauth.authorize')` covers the consent screen — no new blade. The `mcp:use` scope shows up in the consent prompt automatically because Passport reads scope labels from `Passport::$scopes`.
+  - RFC 8707 audience binding is NOT enforced in MVP (AS = RS in our single-host deployment, so audience confusion is not exploitable). Tracked as a follow-up if Firefly ever federates auth.
+  - Public PKCE clients (`token_endpoint_auth_method: none`) — `laravel/mcp`'s DCR creates them this way via Passport's `ClientRepository::createAuthorizationCodeGrantClient(confidential: false, user: null)`. This matches OAuth 2.1 guidance for installed/browser apps.
+- **Date:** 2026-05-18.
+
+### D-040 · DECIDED · `config/mcp.php` redirect-domains: explicit allowlist
+- **Decision:** Publish `config/mcp.php` and set:
+  ```php
+  'redirect_domains' => [
+      'https://claude.ai',
+      'http://localhost',
+      'http://127.0.0.1',
+  ],
+  'custom_schemes'        => [],
+  'authorization_server'  => env('APP_URL'),
+  ```
+- **Why (user):** `laravel/mcp` defaults `redirect_domains` to `['*']`. That accepts DCR registrations with any redirect URI, opening an open-redirect / token-exfiltration vector. The three entries cover claude.ai (web + Desktop + mobile) and loopback (Claude Code, local Anthropic SDK testing). Cursor / VSCode (custom schemes) are deliberately excluded until a real need arises — we re-add them via a single config line, no code change.
+- **Discarded:** Default `['*']` (insecure); `claude.ai` only (cuts Claude Code which uses loopback redirects).
+- **Implication:** Any future client using a non-listed redirect host fails DCR with a validation error. Operators expand the list on demand. Document the knob in `docs/mcp.md`.
+- **Date:** 2026-05-18.
+
+### D-041 · DECIDED · PAT runtime path stays open; PAT removed from docs/plugin config (soft cutover)
+- **Decision:** No code is added to block PAT-Bearer requests to `/api/v1/mcp` — Passport's `auth:api` accepts any Passport-issued bearer, OAuth or PAT alike, and `CheckToken::using('mcp:use')` lets a PAT through too because PATs carry the user's full scope set. However: the plugin's `.mcp.json`, the README, `docs/mcp.md`, and the user-facing changelog all stop mentioning PAT. The plugin config drops the `FIREFLY_PAT` env var and the Cloudflare Access service-token headers. New users only see the OAuth flow; existing PAT users continue to work without action.
+- **Why (user):** "Drop PAT" is a directive about user experience and the documented surface, not a runtime kill. Hard-blocking PAT would break existing installations on upgrade without any operational benefit, and reinstating PAT later (if we ever need a service-account flow) is a docs change. Keep the door open.
+- **Discarded:** Hard cutover via middleware that rejects PATs (breaks existing installs, no upside); leave PAT in docs as a "legacy" option (confuses new users, fragments the install experience).
+- **Implication:**
+  - `plugins/firefly-iii/.mcp.json` drops the `Authorization` and `CF-Access-*` headers entirely; transport stays HTTP, URL stays env-driven. MCP clients trigger the OAuth dance on first call.
+  - README and `docs/mcp.md` describe only the OAuth path. PAT removed from quick-start.
+  - Plugin `version` bumps from `0.1.1` → `0.2.0` (minor; install-surface change, not a fix).
+  - The CF Access service-token bypass policy on `rp5-homeserver` becomes redundant for the MCP path but harmless to leave for now. See [D-043](#d-043--decided--cf-access-deployment-delta-non-blocking).
+- **Date:** 2026-05-18.
+
+### D-042 · DECIDED · OAuth migration sprint shape: 4 teammates, no worktrees (small diff)
+- **Decision:** Four teammates, all working in the main `feat/mcp-integration` worktree, with file-level non-overlap so there are no merge collisions:
+  - **A (Scaffold OAuth):** `routes/ai.php` (add `Mcp::oauthRoutes()` + `CheckToken::using('mcp:use')` middleware), `config/mcp.php` (new published file, tightened per D-040), `app/Mcp/Servers/FireflyServer.php` (instruction docstring update to reflect OAuth).
+  - **B (Plugin):** `plugins/firefly-iii/.mcp.json` (drop PAT + CF headers), `plugins/firefly-iii/README.md` (rewrite install section for OAuth), `plugins/firefly-iii/.claude-plugin/plugin.json` + `.claude-plugin/marketplace.json` (version bump 0.1.1 → 0.2.0).
+  - **C (Tests):** `tests/integration/Api/Mcp/Auth/OAuthDiscoveryTest.php`, `tests/integration/Api/Mcp/Auth/McpScopeTest.php`, `tests/integration/Api/Mcp/Auth/DynamicClientRegistrationTest.php`. Cover: well-known docs return RFC-compliant JSON; `/oauth/register` issues a public PKCE client with `mcp:use` scope; `/api/v1/mcp` rejects no-token (401 + WWW-Authenticate), rejects no-`mcp:use`-scope token (403), accepts scope-bearing token (200); feature flag still wins over auth (404 when off).
+  - **D (Docs):** `docs/mcp.md` (rewrite quick-start), `changelog.md` (add entry), `docs/WIP_MCP.md` (this very block — D-039 to D-043 already authored by orchestrator).
+- **Why (user):** Diff is small enough that worktree isolation adds ceremony without speed. File-level partition between teammates is the cheap version of isolation, with no merge step.
+- **Discarded:** Worktree isolation per D-037 pattern (overkill for a 1-line route + config publish + tests).
+- **Implication:**
+  - All teammates commit to the same branch (`feat/mcp-integration`) in order. Each commits its own scope only — no cross-teammate file touches.
+  - Pre-commit hook (D-031) runs per commit. The format-spread workaround from §8 still applies: format only staged files at hook level.
+  - Conventional Commits per D-031 + `Assisted-by: <model> via Claude Code` footer per D-038.
+  - Final verification (after all four land): `mago format` + `mago lint` + `phpstan` + `phpunit` integration suite, then docker image build, then push + open PR.
+- **Date:** 2026-05-18.
+
+### D-043 · DECIDED · CF Access deployment delta: non-blocking, surfaced in PR body
+- **Decision:** The OAuth migration does NOT include a Cloudflare Access terraform change in this repo. The required policy adjustment in `rp5-homeserver/cloud/main.tf` is described in the PR body for the user to action separately. The minimum delta: the existing `claude_mcp_bypass` policy stays (harmless leftover from the PAT era), and a new bypass set is added for the OAuth surface paths — `/oauth/authorize`, `/oauth/token`, `/oauth/register`, `/.well-known/oauth-*`, `/api/v1/mcp` — either via Anthropic egress-IP allowlist or by removing CF Access from `firefly.giocaizzi.xyz` entirely (the latter is simpler given Firefly is intentionally a public API surface).
+- **Why (user):** This repo is the application, not the deployment. Mixing terraform-side perimeter changes into the application PR confuses ownership and slows merge. The deployment delta is reversible and the user controls it directly.
+- **Discarded:** Bundle the terraform change in this branch (wrong repo); leave CF Access entirely in place (breaks the OAuth redirect flow for non-authenticated CF visitors during DCR).
+- **Implication:**
+  - PR body includes a "Deployment delta" section that quotes the required terraform changes verbatim.
+  - The user merges this PR → Portainer redeploys Firefly → the OAuth-mounted MCP endpoint comes up → the user applies the terraform delta on `rp5-homeserver` before testing claude.ai's connector.
+  - If the user wants to verify Claude Desktop / Claude Code first (which use loopback or service-token paths), no terraform change is required.
+- **Date:** 2026-05-18.
 
 ---
 
