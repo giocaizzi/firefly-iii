@@ -5,14 +5,14 @@
     "url": "https://github.com/giocaizzi"
   },
   "metadata": {
-    "description": "Claude Code marketplace for the giocaizzi/firefly-iii fork.",
+    "description": "Plugin marketplace for the giocaizzi/firefly-iii fork.",
     "version": "0.1.0"
   },
   "plugins": [
     {
       "name": "firefly-iii",
       "source": "./plugins/firefly-iii",
-      "description": "Operate a Firefly III personal-finance instance from Claude Code: read accounts/transactions/budgets, run insight aggregates, create or update transactions with idempotency safety, review categorization in batch — all via the in-fork MCP endpoint plus four slash commands and a focused subagent.",
+      "description": "Operate a Firefly III personal-finance instance from an AI assistant: read accounts/transactions/budgets, run insight aggregates, create or update transactions with idempotency safety, review categorization in batch — all via the in-fork MCP endpoint plus four slash commands and a focused subagent.",
       "version": "0.1.0",
       "keywords": ["firefly-iii", "finance", "budgeting", "mcp", "personal-finance"]
     }

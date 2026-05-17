@@ -1,11 +1,11 @@
 # firefly-iii
 
-Claude Code plugin for operating a [Firefly III](https://firefly-iii.org/) personal-finance instance. Covers the full agentic surface: read entities, run insight aggregates, create/update transactions safely, and audit categorization in batch.
+Plugin for operating a [Firefly III](https://firefly-iii.org/) personal-finance instance from an AI assistant. Covers the full agentic surface: read entities, run insight aggregates, create/update transactions safely, and audit categorization in batch.
 
 ## What it ships
 
-- **MCP server registration** (`.mcp.json`) — HTTP transport, Bearer auth via `${user_config.firefly_token}`, URL via `${user_config.firefly_url}`.
-- **Skill** `firefly` (`skills/firefly/`) — teaches Claude when to consult Firefly (any finance / money / spending / budget / balance / transaction question) and how to wield the 25-tool surface efficiently. Includes references for the full tool catalog, common workflow recipes, and known gotchas.
+- **MCP server registration** (`.mcp.json`) — HTTP transport, Bearer auth via `${FIREFLY_PAT}`, URL via `${FIREFLY_URL}`, plus optional Cloudflare Access service-token headers.
+- **Skill** `firefly` (`skills/firefly/`) — teaches the assistant when to consult Firefly (any finance / money / spending / budget / balance / transaction question) and how to wield the 25-tool surface efficiently. Includes references for the full tool catalog, common workflow recipes, and known gotchas.
 - **Slash commands** namespaced under `/firefly-iii:`:
   - `/firefly-iii:summary [period]` — one-shot financial digest
   - `/firefly-iii:spending <period> [category]` — spending breakdown
@@ -17,16 +17,20 @@ Claude Code plugin for operating a [Firefly III](https://firefly-iii.org/) perso
 
 A Firefly III instance with the MCP endpoint enabled (`allow_mcp=true`, default). The endpoint was added in Firefly v6.7.0; if you're on upstream `:latest` (v6.6.x or earlier) you'll need to either upgrade or run the `feat/mcp-integration` fork (see [giocaizzi/firefly-iii](https://github.com/giocaizzi/firefly-iii)).
 
+An MCP-aware AI assistant capable of loading plugin bundles (skills, commands, agents, `.mcp.json`). The plugin content itself is assistant-agnostic.
+
 ## Install
+
+The bundle uses the open Claude Code plugin marketplace layout (`.claude-plugin/marketplace.json` + `plugins/firefly-iii/`). Install commands depend on your assistant client. Example (a client supporting `/plugin marketplace`):
 
 ```
 /plugin marketplace add giocaizzi/firefly-iii
-/plugin install firefly-iii@firefly-iii
+/plugin install firefly-iii@giocaizzi-firefly
 ```
 
-(The marketplace lives in the [`feat/mcp-integration`](https://github.com/giocaizzi/firefly-iii/tree/feat/mcp-integration) branch of the fork. If `/plugin marketplace add` doesn't pick it up from `main`, point it at the branch explicitly.)
+(The marketplace lives in the [`feat/mcp-integration`](https://github.com/giocaizzi/firefly-iii/tree/feat/mcp-integration) branch of the fork. If your client doesn't pick it up from the default branch, point it at the branch or the local checkout explicitly.)
 
-Before launching Claude Code, export the connection variables in your shell (typically in `~/.zshrc` or `~/.bashrc`):
+Before launching the assistant, export the connection variables in your shell (typically in `~/.zshrc` or `~/.bashrc`):
 
 ```sh
 # Firefly III instance
@@ -41,9 +45,9 @@ export FIREFLY_CF_ACCESS_CLIENT_ID="<service-token-client-id>"
 export FIREFLY_CF_ACCESS_CLIENT_SECRET="<service-token-client-secret>"
 ```
 
-The plugin's `.mcp.json` references these four variables directly, so Claude Code reads them from your environment at MCP-server boot. No keychain prompt, no per-install state.
+The plugin's `.mcp.json` references these four variables directly, so the assistant reads them from your environment at MCP-server boot. No keychain prompt, no per-install state.
 
-Restart Claude Code or open a new session — the MCP server registers automatically and the skill triggers on any finance question.
+Restart the assistant session — the MCP server registers automatically and the skill triggers on any finance question.
 
 ## Verify
 
