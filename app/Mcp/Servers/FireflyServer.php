@@ -28,6 +28,7 @@ use FireflyIII\Mcp\Tools\ChartDataTool;
 use FireflyIII\Mcp\Tools\CreateDepositTool;
 use FireflyIII\Mcp\Tools\CreateTransferTool;
 use FireflyIII\Mcp\Tools\CreateWithdrawalTool;
+use FireflyIII\Mcp\Tools\DeleteTransactionTool;
 use FireflyIII\Mcp\Tools\GetAccountTool;
 use FireflyIII\Mcp\Tools\GetBudgetTool;
 use FireflyIII\Mcp\Tools\GetCategoryTool;
@@ -46,6 +47,7 @@ use FireflyIII\Mcp\Tools\ListTransactionsTool;
 use FireflyIII\Mcp\Tools\ListWebhooksTool;
 use FireflyIII\Mcp\Tools\SearchTransactionsTool;
 use FireflyIII\Mcp\Tools\SummaryBasicTool;
+use FireflyIII\Mcp\Tools\UpdateTransactionTool;
 use Laravel\Mcp\Server;
 
 /**
@@ -89,7 +91,9 @@ final class FireflyServer extends Server
         // §4.5 writes
         CreateWithdrawalTool::class,
         CreateDepositTool::class,
-        CreateTransferTool::class
+        CreateTransferTool::class,
+        UpdateTransactionTool::class,
+        DeleteTransactionTool::class
     ];
 
     // Populated by Sprint Teammate D; see WIP_MCP §5.
