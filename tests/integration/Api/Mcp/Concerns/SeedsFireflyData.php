@@ -24,6 +24,7 @@ declare(strict_types=1);
 
 namespace Tests\integration\Api\Mcp\Concerns;
 
+use Carbon\Carbon;
 use FireflyIII\Enums\AccountTypeEnum;
 use FireflyIII\Enums\TransactionTypeEnum;
 use FireflyIII\Models\Account;
@@ -79,7 +80,7 @@ trait SeedsFireflyData
     ): TransactionGroup {
         return $this->storeTransaction($user, [
             'type'             => TransactionTypeEnum::WITHDRAWAL->value,
-            'date'             => now()->format('Y-m-d'),
+            'date'             => Carbon::now(),
             'amount'           => $amount,
             'description'      => $description,
             'source_id'        => $source->id,
