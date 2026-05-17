@@ -41,7 +41,19 @@ final class FireflyServer extends Server
     protected string $version;
 
     // Populated by Sprint Teammates B (read) and C (write); see WIP_MCP §4.
-    protected array $tools = [];
+    protected array $tools = [
+        // Sprint B — read tools §4.1 core entity list/get
+        \FireflyIII\Mcp\Tools\ListAccountsTool::class,
+        \FireflyIII\Mcp\Tools\GetAccountTool::class,
+        \FireflyIII\Mcp\Tools\ListTransactionsTool::class,
+        \FireflyIII\Mcp\Tools\GetTransactionTool::class,
+        \FireflyIII\Mcp\Tools\ListBudgetsTool::class,
+        \FireflyIII\Mcp\Tools\GetBudgetTool::class,
+        \FireflyIII\Mcp\Tools\ListCategoriesTool::class,
+        \FireflyIII\Mcp\Tools\GetCategoryTool::class,
+        \FireflyIII\Mcp\Tools\ListTagsTool::class,
+        \FireflyIII\Mcp\Tools\GetTagTool::class
+    ];
 
     // Populated by Sprint Teammate D; see WIP_MCP §5.
     protected array $resources = [];
