@@ -25,6 +25,7 @@ declare(strict_types=1);
 namespace FireflyIII\Mcp\Tools;
 
 use FireflyIII\Repositories\Account\AccountRepositoryInterface;
+use FireflyIII\Support\JsonApi\Enrichments\AccountEnrichment;
 use FireflyIII\Transformers\AccountTransformer;
 use FireflyIII\User;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
@@ -60,6 +61,10 @@ final class GetAccountTool extends AbstractMcpTool
         if (null === $account) {
             return Response::error('Account not found.');
         }
+
+        $enrichment = new AccountEnrichment();
+        $enrichment->setUser($user);
+        $account = $enrichment->enrichSingle($account);
 
         $transformer = app(AccountTransformer::class);
         $resource    = new Item($account, $transformer, 'accounts');

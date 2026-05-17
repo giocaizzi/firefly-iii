@@ -25,6 +25,7 @@ declare(strict_types=1);
 namespace FireflyIII\Mcp\Tools;
 
 use FireflyIII\Repositories\PiggyBank\PiggyBankRepositoryInterface;
+use FireflyIII\Support\JsonApi\Enrichments\PiggyBankEnrichment;
 use FireflyIII\Transformers\PiggyBankTransformer;
 use FireflyIII\User;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
@@ -55,6 +56,10 @@ final class ListPiggyBanksTool extends AbstractMcpTool
         $count      = $collection->count();
         $offset     = ($page - 1) * $limit;
         $piggyBanks = $collection->slice($offset, $limit);
+
+        $enrichment = new PiggyBankEnrichment();
+        $enrichment->setUser($user);
+        $piggyBanks = $enrichment->enrich($piggyBanks);
 
         $paginator = new LengthAwarePaginator($piggyBanks, $count, $limit, $page);
 
