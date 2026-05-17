@@ -1,5 +1,5 @@
 ---
-description: Spending breakdown for a period, optionally filtered to a category. Usage: /firefly-mcp:spending <period> [category]
+description: Spending breakdown for a period, optionally filtered to a category. Usage: /firefly-iii:spending <period> [category]
 ---
 
 The user wants a spending breakdown. `$ARGUMENTS` will look like one of:
