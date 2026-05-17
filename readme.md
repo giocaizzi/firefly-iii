@@ -40,6 +40,7 @@
 - [About Firefly III](#about-firefly-iii)
   - [Purpose](#purpose)
 - [Features](#features)
+- [MCP endpoint for AI agents](#mcp-endpoint-for-ai-agents)
 - [Who's it for?](#whos-it-for)
 - [The Firefly III eco-system](#the-firefly-iii-eco-system)
 - [Getting Started](#getting-started)
@@ -106,6 +107,10 @@ And to organise everything:
 * Lots of charts because we all love them.
 
 Many more features are listed in the [documentation](https://docs.firefly-iii.org/explanation/firefly-iii/about/introduction/).
+
+## MCP endpoint for AI agents
+
+Firefly III exposes a [Model Context Protocol](https://modelcontextprotocol.io/) endpoint at `/api/v1/mcp`, letting AI agents read and write your data using the same Personal Access Tokens that authenticate the REST API. The endpoint ships 25 tools (read, search, aggregate, and write) and 8 resources (static catalogs and user snapshots), gated by the `allow_mcp` feature flag (default ON). See [`docs/mcp.md`](docs/mcp.md) for setup, the full tool list, and known MVP limitations.
 
 ## Who's it for?
 <img src="https://raw.githubusercontent.com/firefly-iii/firefly-iii/develop/.github/assets/img/iphone-complete.png" alt="Firefly III on iPhone" align="left" width="250">

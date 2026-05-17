@@ -3,6 +3,16 @@
 All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 
+## v6.7.0 - 2026-05-17
+
+<!-- summary: Adds an MCP (Model Context Protocol) endpoint for agentic AI access at /api/v1/mcp, gated behind the new allow_mcp feature flag (default ON). -->
+
+### Added
+
+- New MCP endpoint at `/api/v1/mcp` exposing 25 tools (read, search, aggregate, write) and 8 resources (static catalogs and user snapshots) to AI agents over the Model Context Protocol. Authentication reuses Laravel Passport Personal Access Tokens. See [`docs/mcp.md`](docs/mcp.md) for setup and the full inventory.
+- New `allow_mcp` instance flag (default `true`) gating the MCP endpoint. When disabled the route returns `404`.
+- New composite index on `journal_meta(name, data(191))` to back the `mcp_idempotency_key` lookup used by MCP write tools.
+
 ## v6.6.2 - 2026-04-28
 
 <!-- summary: This releases fixes a security issue and some small UI issues. Please upgrade at your earliest convenience. -->
