@@ -73,6 +73,15 @@ final class FireflyServer extends Server
 
     protected string $version;
 
+    /**
+     * Override laravel/mcp's default page size (15) so all 25 MCP tools land in a single
+     * tools/list response. Many MCP clients — Claude Code's SDK among them — do NOT
+     * automatically follow nextCursor, which silently hides the trailing tools (aggregates
+     * + writes) from the agent. Keeping the entire surface visible after one round-trip
+     * costs ~3kB of additional response payload, well within the framework's 50-item max.
+     */
+    public int $defaultPaginationLength = 50;
+
     protected array $tools = [
         // §4.1 core entity list/get
         ListAccountsTool::class,
