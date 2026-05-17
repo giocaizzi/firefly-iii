@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+#
+# pre-commit hook - WIP_MCP D-031.
+#
+# Runs Mago format (autofix), Mago lint, PHPStan, and the unit-test suite.
+# Aborts the commit on any non-zero status. Install via scripts/install-hooks.sh.
+#
+set -euo pipefail
+
+echo "==> mago format"
+./vendor/bin/mago format
+
+echo "==> mago lint"
+./vendor/bin/mago lint
+
+echo "==> phpstan"
+vendor/bin/phpstan analyse -c .ci/phpstan.neon --no-progress
+
+echo "==> unit tests"
+composer unit-test
