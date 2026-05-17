@@ -25,6 +25,7 @@ declare(strict_types=1);
 namespace FireflyIII\Mcp\Tools;
 
 use FireflyIII\Repositories\Category\CategoryRepositoryInterface;
+use FireflyIII\Support\JsonApi\Enrichments\CategoryEnrichment;
 use FireflyIII\Transformers\CategoryTransformer;
 use FireflyIII\User;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
@@ -55,6 +56,10 @@ final class ListCategoriesTool extends AbstractMcpTool
         $count      = $collection->count();
         $offset     = ($page - 1) * $limit;
         $categories = $collection->slice($offset, $limit);
+
+        $enrichment = new CategoryEnrichment();
+        $enrichment->setUser($user);
+        $categories = $enrichment->enrich($categories);
 
         $paginator = new LengthAwarePaginator($categories, $count, $limit, $page);
 

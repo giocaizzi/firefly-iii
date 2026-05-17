@@ -25,6 +25,7 @@ declare(strict_types=1);
 namespace FireflyIII\Mcp\Tools;
 
 use FireflyIII\Repositories\Budget\BudgetRepositoryInterface;
+use FireflyIII\Support\JsonApi\Enrichments\BudgetEnrichment;
 use FireflyIII\Transformers\BudgetTransformer;
 use FireflyIII\User;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
@@ -60,6 +61,10 @@ final class GetBudgetTool extends AbstractMcpTool
         if (null === $budget) {
             return Response::error('Budget not found.');
         }
+
+        $enrichment = new BudgetEnrichment();
+        $enrichment->setUser($user);
+        $budget = $enrichment->enrichSingle($budget);
 
         $transformer = app(BudgetTransformer::class);
         $resource    = new Item($budget, $transformer, 'budgets');

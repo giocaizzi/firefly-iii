@@ -27,6 +27,7 @@ namespace FireflyIII\Mcp\Tools;
 use FireflyIII\Enums\AccountTypeEnum;
 use FireflyIII\Models\Account;
 use FireflyIII\Repositories\Account\AccountRepositoryInterface;
+use FireflyIII\Support\JsonApi\Enrichments\AccountEnrichment;
 use FireflyIII\Transformers\AccountTransformer;
 use FireflyIII\User;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
@@ -64,6 +65,10 @@ final class ListAccountsTool extends AbstractMcpTool
         $count    = $collection->count();
         $offset   = ($page - 1) * $limit;
         $accounts = $collection->slice($offset, $limit);
+
+        $enrichment = new AccountEnrichment();
+        $enrichment->setUser($user);
+        $accounts = $enrichment->enrich($accounts);
 
         $paginator = new LengthAwarePaginator($accounts, $count, $limit, $page);
 

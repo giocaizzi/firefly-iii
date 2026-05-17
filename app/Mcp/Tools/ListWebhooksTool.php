@@ -26,6 +26,7 @@ namespace FireflyIII\Mcp\Tools;
 
 use FireflyIII\Repositories\Webhook\WebhookRepositoryInterface;
 use FireflyIII\Support\Facades\FireflyConfig;
+use FireflyIII\Support\JsonApi\Enrichments\WebhookEnrichment;
 use FireflyIII\Transformers\WebhookTransformer;
 use FireflyIII\User;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
@@ -60,6 +61,10 @@ final class ListWebhooksTool extends AbstractMcpTool
         $count      = $collection->count();
         $offset     = ($page - 1) * $limit;
         $webhooks   = $collection->slice($offset, $limit);
+
+        $enrichment = new WebhookEnrichment();
+        $enrichment->setUser($user);
+        $webhooks = $enrichment->enrich($webhooks);
 
         $paginator = new LengthAwarePaginator($webhooks, $count, $limit, $page);
 

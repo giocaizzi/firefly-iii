@@ -25,6 +25,7 @@ declare(strict_types=1);
 namespace FireflyIII\Mcp\Tools;
 
 use FireflyIII\Repositories\Budget\BudgetRepositoryInterface;
+use FireflyIII\Support\JsonApi\Enrichments\BudgetEnrichment;
 use FireflyIII\Transformers\BudgetTransformer;
 use FireflyIII\User;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
@@ -56,6 +57,10 @@ final class ListBudgetsTool extends AbstractMcpTool
         $count   = $collection->count();
         $offset  = ($page - 1) * $limit;
         $budgets = $collection->slice($offset, $limit);
+
+        $enrichment = new BudgetEnrichment();
+        $enrichment->setUser($user);
+        $budgets = $enrichment->enrich($budgets);
 
         $paginator = new LengthAwarePaginator($budgets, $count, $limit, $page);
 

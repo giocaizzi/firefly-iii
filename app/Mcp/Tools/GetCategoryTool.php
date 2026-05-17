@@ -25,6 +25,7 @@ declare(strict_types=1);
 namespace FireflyIII\Mcp\Tools;
 
 use FireflyIII\Repositories\Category\CategoryRepositoryInterface;
+use FireflyIII\Support\JsonApi\Enrichments\CategoryEnrichment;
 use FireflyIII\Transformers\CategoryTransformer;
 use FireflyIII\User;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
@@ -60,6 +61,10 @@ final class GetCategoryTool extends AbstractMcpTool
         if (null === $category) {
             return Response::error('Category not found.');
         }
+
+        $enrichment = new CategoryEnrichment();
+        $enrichment->setUser($user);
+        $category = $enrichment->enrichSingle($category);
 
         $transformer = app(CategoryTransformer::class);
         $resource    = new Item($category, $transformer, 'categories');

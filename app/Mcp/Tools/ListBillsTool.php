@@ -25,6 +25,7 @@ declare(strict_types=1);
 namespace FireflyIII\Mcp\Tools;
 
 use FireflyIII\Repositories\Bill\BillRepositoryInterface;
+use FireflyIII\Support\JsonApi\Enrichments\SubscriptionEnrichment;
 use FireflyIII\Transformers\BillTransformer;
 use FireflyIII\User;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
@@ -55,6 +56,10 @@ final class ListBillsTool extends AbstractMcpTool
         $count      = $collection->count();
         $offset     = ($page - 1) * $limit;
         $bills      = $collection->slice($offset, $limit);
+
+        $enrichment = new SubscriptionEnrichment();
+        $enrichment->setUser($user);
+        $bills = $enrichment->enrich($bills);
 
         $paginator = new LengthAwarePaginator($bills, $count, $limit, $page);
 
