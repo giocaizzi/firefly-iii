@@ -104,6 +104,7 @@ return [
     'disable_frame_header'                 => env('DISABLE_FRAME_HEADER', false),
     'disable_csp_header'                   => env('DISABLE_CSP_HEADER', false),
     'allow_webhooks'                       => env('ALLOW_WEBHOOKS', false), // no longer used, only for default.
+    'allow_mcp'                            => env('FIREFLY_III_ALLOW_MCP', true),
 
     // info for demo site
     'demo_username'                        => env('DEMO_USERNAME', ''),
