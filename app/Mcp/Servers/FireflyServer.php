@@ -24,6 +24,7 @@ declare(strict_types=1);
 
 namespace FireflyIII\Mcp\Servers;
 
+use FireflyIII\Mcp\Tools\BulkCreateTransactionsTool;
 use FireflyIII\Mcp\Tools\ChartDataTool;
 use FireflyIII\Mcp\Tools\CreateDepositTool;
 use FireflyIII\Mcp\Tools\CreateTransferTool;
@@ -93,7 +94,8 @@ final class FireflyServer extends Server
         CreateDepositTool::class,
         CreateTransferTool::class,
         UpdateTransactionTool::class,
-        DeleteTransactionTool::class
+        DeleteTransactionTool::class,
+        BulkCreateTransactionsTool::class
     ];
 
     // Populated by Sprint Teammate D; see WIP_MCP §5.
