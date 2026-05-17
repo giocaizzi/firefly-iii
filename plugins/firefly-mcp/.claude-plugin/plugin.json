@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "firefly-mcp",
+  "version": "0.1.0",
+  "description": "Operate a Firefly III personal-finance instance through its MCP endpoint. Bundles a skill that teaches Claude the 25-tool surface, four slash commands for common dashboards, an agent for categorization audits, and the MCP server registration.",
+  "author": {
+    "name": "Giorgio Caizzi",
+    "email": "giocaizzi@gmail.com",
+    "url": "https://github.com/giocaizzi"
+  },
+  "homepage": "https://github.com/giocaizzi/firefly-iii/tree/feat/mcp-integration/plugins/firefly-mcp",
+  "repository": "https://github.com/giocaizzi/firefly-iii",
+  "license": "MIT",
+  "keywords": [
+    "firefly-iii",
+    "finance",
+    "budgeting",
+    "mcp",
+    "personal-finance"
+  ],
+  "userConfig": {
+    "firefly_url": {
+      "type": "string",
+      "title": "Firefly III base URL",
+      "description": "Base URL of your Firefly III instance, without a trailing slash. The plugin will call POST {url}/api/v1/mcp. Example: https://firefly.example.com",
+      "required": true
+    },
+    "firefly_token": {
+      "type": "string",
+      "title": "Firefly III Personal Access Token",
+      "description": "A Personal Access Token created in Firefly III under Options → Profile → OAuth → Personal Access Tokens. The plugin sends it as a Bearer header.",
+      "sensitive": true,
+      "required": true
+    }
+  }
+}
