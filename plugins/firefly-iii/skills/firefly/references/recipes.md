@@ -31,7 +31,7 @@ Often the discrepancy is a duplicate or a transaction logged on the wrong date.
 
 ## Recipe: bulk re-categorization
 
-User has 20 transactions tagged "uncategorized" they want to spread across categories. **Use the `firefly-mcp:transaction-reviewer` agent for this** — it does the audit-and-propose flow correctly.
+User has 20 transactions tagged "uncategorized" they want to spread across categories. **Use the `firefly-iii:transaction-reviewer` agent for this** — it does the audit-and-propose flow correctly.
 
 Manual fallback if the agent isn't available:
 

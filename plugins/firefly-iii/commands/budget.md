@@ -1,5 +1,5 @@
 ---
-description: Budget vs actual for a period. Default = current month. Usage: /firefly-mcp:budget [period]
+description: Budget vs actual for a period. Default = current month. Usage: /firefly-iii:budget [period]
 ---
 
 The user wants a budget vs actual comparison for `$ARGUMENTS` (or current month if empty).

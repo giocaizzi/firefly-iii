@@ -1,17 +1,17 @@
-# firefly-mcp
+# firefly-iii
 
-Claude Code plugin for operating a [Firefly III](https://firefly-iii.org/) personal-finance instance through its MCP endpoint.
+Claude Code plugin for operating a [Firefly III](https://firefly-iii.org/) personal-finance instance. Covers the full agentic surface: read entities, run insight aggregates, create/update transactions safely, and audit categorization in batch.
 
 ## What it ships
 
 - **MCP server registration** (`.mcp.json`) — HTTP transport, Bearer auth via `${user_config.firefly_token}`, URL via `${user_config.firefly_url}`.
-- **Skill** (`skills/firefly-finance/`) — teaches Claude when to consult Firefly (any finance / money / spending / budget / balance / transaction question) and how to wield the 25-tool surface efficiently. Includes references for the full tool catalog, common workflow recipes, and known gotchas.
-- **Slash commands** namespaced under `/firefly-mcp:`:
-  - `/firefly-mcp:summary [period]` — one-shot financial digest
-  - `/firefly-mcp:spending <period> [category]` — spending breakdown
-  - `/firefly-mcp:budget [period]` — budget vs actual
-  - `/firefly-mcp:new` — guided transaction creation
-- **Agent** `firefly-mcp:transaction-reviewer` — batch categorization audit with deterministic idempotency keys.
+- **Skill** `firefly` (`skills/firefly/`) — teaches Claude when to consult Firefly (any finance / money / spending / budget / balance / transaction question) and how to wield the 25-tool surface efficiently. Includes references for the full tool catalog, common workflow recipes, and known gotchas.
+- **Slash commands** namespaced under `/firefly-iii:`:
+  - `/firefly-iii:summary [period]` — one-shot financial digest
+  - `/firefly-iii:spending <period> [category]` — spending breakdown
+  - `/firefly-iii:budget [period]` — budget vs actual
+  - `/firefly-iii:new` — guided transaction creation
+- **Agent** `firefly-iii:transaction-reviewer` — batch categorization audit with deterministic idempotency keys.
 
 ## Requirements
 
@@ -21,7 +21,7 @@ A Firefly III instance with the MCP endpoint enabled (`allow_mcp=true`, default)
 
 ```
 /plugin marketplace add giocaizzi/firefly-iii
-/plugin install firefly-mcp@giocaizzi-firefly-plugins
+/plugin install firefly-iii@firefly-iii
 ```
 
 (The marketplace lives in the [`feat/mcp-integration`](https://github.com/giocaizzi/firefly-iii/tree/feat/mcp-integration) branch of the fork. If `/plugin marketplace add` doesn't pick it up from `main`, point it at the branch explicitly.)

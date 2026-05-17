@@ -1,5 +1,5 @@
 ---
-description: Guided creation of a new transaction (withdrawal / deposit / transfer). Usage: /firefly-mcp:new [type] [amount] [description...]
+description: Guided creation of a new transaction (withdrawal / deposit / transfer). Usage: /firefly-iii:new [type] [amount] [description...]
 ---
 
 The user wants to log a new transaction. `$ARGUMENTS` may carry partial info like:
