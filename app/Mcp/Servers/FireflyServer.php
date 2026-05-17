@@ -24,6 +24,9 @@ declare(strict_types=1);
 
 namespace FireflyIII\Mcp\Servers;
 
+use FireflyIII\Mcp\Tools\CreateDepositTool;
+use FireflyIII\Mcp\Tools\CreateTransferTool;
+use FireflyIII\Mcp\Tools\CreateWithdrawalTool;
 use Laravel\Mcp\Server;
 
 /**
@@ -41,7 +44,11 @@ final class FireflyServer extends Server
     protected string $version;
 
     // Populated by Sprint Teammates B (read) and C (write); see WIP_MCP §4.
-    protected array $tools = [];
+    protected array $tools = [
+        CreateWithdrawalTool::class,
+        CreateDepositTool::class,
+        CreateTransferTool::class
+    ];
 
     // Populated by Sprint Teammate D; see WIP_MCP §5.
     protected array $resources = [];
