@@ -1,38 +1,20 @@
 {
-  "$schema": "https://json.schemastore.org/claude-code-marketplace-manifest.json",
-  "name": "firefly-iii",
+  "name": "giocaizzi-firefly",
   "owner": {
-    "name": "Giorgio Caizzi",
-    "email": "giocaizzi@gmail.com"
+    "name": "giocaizzi",
+    "url": "https://github.com/giocaizzi"
   },
-  "description": "Claude Code marketplace for the giocaizzi/firefly-iii fork.",
   "metadata": {
-    "pluginRoot": "./plugins"
+    "description": "Claude Code marketplace for the giocaizzi/firefly-iii fork.",
+    "version": "0.1.0"
   },
   "plugins": [
     {
       "name": "firefly-iii",
-      "source": "./firefly-iii",
+      "source": "./plugins/firefly-iii",
       "description": "Operate a Firefly III personal-finance instance from Claude Code: read accounts/transactions/budgets, run insight aggregates, create or update transactions with idempotency safety, review categorization in batch — all via the in-fork MCP endpoint plus four slash commands and a focused subagent.",
       "version": "0.1.0",
-      "author": {
-        "name": "Giorgio Caizzi",
-        "email": "giocaizzi@gmail.com"
-      },
-      "homepage": "https://github.com/giocaizzi/firefly-iii/tree/feat/mcp-integration/plugins/firefly-iii",
-      "repository": "https://github.com/giocaizzi/firefly-iii",
-      "license": "MIT",
-      "keywords": [
-        "firefly-iii",
-        "finance",
-        "budgeting",
-        "mcp"
-      ],
-      "category": "finance",
-      "tags": [
-        "personal-finance",
-        "self-hosted"
-      ]
+      "keywords": ["firefly-iii", "finance", "budgeting", "mcp", "personal-finance"]
     }
   ]
 }

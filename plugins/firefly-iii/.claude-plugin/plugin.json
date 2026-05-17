@@ -2,7 +2,7 @@
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "firefly-iii",
   "version": "0.1.0",
-  "description": "Operate a Firefly III personal-finance instance from Claude Code. Bundles the MCP server registration, a skill teaching the 25-tool surface, four slash commands for common dashboards, and a categorization-audit agent. Covers the full Firefly III agentic surface, not just one workflow. Reads connection details from the FIREFLY_URL and FIREFLY_PAT environment variables.",
+  "description": "Operate a Firefly III personal-finance instance from Claude Code. Bundles the MCP server registration, a skill teaching the 25-tool surface, four slash commands for common dashboards, and a categorization-audit agent. Covers the full Firefly III agentic surface, not just one workflow. Reads connection details from the FIREFLY_URL, FIREFLY_PAT, FIREFLY_CF_ACCESS_CLIENT_ID, and FIREFLY_CF_ACCESS_CLIENT_SECRET environment variables.",
   "author": {
     "name": "Giorgio Caizzi",
     "email": "giocaizzi@gmail.com",
