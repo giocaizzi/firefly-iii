@@ -25,8 +25,26 @@ declare(strict_types=1);
 use FireflyIII\Http\Middleware\McpFeatureFlag;
 use FireflyIII\Mcp\Servers\FireflyServer;
 use Laravel\Mcp\Facades\Mcp;
+use Laravel\Passport\Http\Middleware\CheckToken;
+
+// MCP-spec OAuth discovery (WIP_MCP.md D-039). Registers:
+//   GET /.well-known/oauth-protected-resource             (RFC 9728)
+//   GET /.well-known/oauth-authorization-server           (RFC 8414)
+//   POST /oauth/register                                  (RFC 7591 — Dynamic Client Registration)
+// Auto-injects the `mcp:use` scope into Passport via Mcp::ensureMcpScope().
+Mcp::oauthRoutes();
 
 // MCP server mount. The path is literal (Laravel\Mcp\Server\Registrar::web()
 // registers it as-is; routes/ai.php is loaded outside the api/ group, so the
 // final URL is exactly /api/v1/mcp). See WIP_MCP.md D-006.
-Mcp::web('/api/v1/mcp', FireflyServer::class)->middleware(['auth:api', McpFeatureFlag::class]);
+//
+// Auth chain (top-down): auth:api (Passport bearer) → CheckToken (scope=mcp:use)
+// → McpFeatureFlag (allow_mcp config kill switch). The middleware order matters
+// only for the response code on failure — 401 vs 403 vs 404 — and matches the
+// expectations of the MCP discovery flow (401 + WWW-Authenticate kicks the
+// client into OAuth).
+Mcp::web('/api/v1/mcp', FireflyServer::class)->middleware([
+    'auth:api',
+    CheckToken::using('mcp:use'),
+    McpFeatureFlag::class,
+]);
