@@ -2,9 +2,9 @@
   "mcpServers": {
     "firefly-iii": {
       "type": "http",
-      "url": "${user_config.firefly_url}/api/v1/mcp",
+      "url": "${FIREFLY_URL}/api/v1/mcp",
       "headers": {
-        "Authorization": "Bearer ${user_config.firefly_token}",
+        "Authorization": "Bearer ${FIREFLY_PAT}",
         "Accept": "application/json, text/event-stream"
       }
     }

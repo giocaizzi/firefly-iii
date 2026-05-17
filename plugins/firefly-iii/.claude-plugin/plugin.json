@@ -2,7 +2,7 @@
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "firefly-iii",
   "version": "0.1.0",
-  "description": "Operate a Firefly III personal-finance instance from Claude Code. Bundles the MCP server registration, a skill teaching the 25-tool surface, four slash commands for common dashboards, and a categorization-audit agent. Covers the full Firefly III agentic surface, not just one workflow.",
+  "description": "Operate a Firefly III personal-finance instance from Claude Code. Bundles the MCP server registration, a skill teaching the 25-tool surface, four slash commands for common dashboards, and a categorization-audit agent. Covers the full Firefly III agentic surface, not just one workflow. Reads connection details from the FIREFLY_URL and FIREFLY_PAT environment variables.",
   "author": {
     "name": "Giorgio Caizzi",
     "email": "giocaizzi@gmail.com",
@@ -17,20 +17,5 @@
     "budgeting",
     "mcp",
     "personal-finance"
-  ],
-  "userConfig": {
-    "firefly_url": {
-      "type": "string",
-      "title": "Firefly III base URL",
-      "description": "Base URL of your Firefly III instance, without a trailing slash. The plugin will call POST {url}/api/v1/mcp. Example: https://firefly.example.com",
-      "required": true
-    },
-    "firefly_token": {
-      "type": "string",
-      "title": "Firefly III Personal Access Token",
-      "description": "A Personal Access Token created in Firefly III under Options → Profile → OAuth → Personal Access Tokens. The plugin sends it as a Bearer header.",
-      "sensitive": true,
-      "required": true
-    }
-  }
+  ]
 }

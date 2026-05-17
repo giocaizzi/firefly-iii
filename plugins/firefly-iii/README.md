@@ -26,14 +26,16 @@ A Firefly III instance with the MCP endpoint enabled (`allow_mcp=true`, default)
 
 (The marketplace lives in the [`feat/mcp-integration`](https://github.com/giocaizzi/firefly-iii/tree/feat/mcp-integration) branch of the fork. If `/plugin marketplace add` doesn't pick it up from `main`, point it at the branch explicitly.)
 
-You'll be prompted for two values:
+Before launching Claude Code, export the two connection variables in your shell (typically in `~/.zshrc` or `~/.bashrc`):
 
-| Field | Purpose | Example |
-|---|---|---|
-| **Firefly III base URL** | Base of your Firefly host. Plugin calls `<url>/api/v1/mcp`. | `https://firefly.example.com` |
-| **Personal Access Token** | Created in Firefly → Options → Profile → OAuth → Personal Access Tokens. Stored in your OS keychain (`sensitive: true`). | (long opaque string) |
+```sh
+export FIREFLY_URL="https://firefly.example.com"   # base URL, no trailing slash
+export FIREFLY_PAT="<your-personal-access-token>"  # from Firefly → Options → Profile → OAuth
+```
 
-That's it. Restart Claude Code or open a new session — the MCP server registers automatically and the skill triggers on any finance question.
+The plugin's `.mcp.json` references `${FIREFLY_URL}` and `${FIREFLY_PAT}` directly, so Claude Code reads them from your environment at MCP-server boot. No keychain prompt, no per-install state.
+
+Restart Claude Code or open a new session — the MCP server registers automatically and the skill triggers on any finance question.
 
 ## Verify
 
