@@ -24,6 +24,28 @@ declare(strict_types=1);
 
 namespace FireflyIII\Mcp\Servers;
 
+use FireflyIII\Mcp\Tools\ChartDataTool;
+use FireflyIII\Mcp\Tools\CreateDepositTool;
+use FireflyIII\Mcp\Tools\CreateTransferTool;
+use FireflyIII\Mcp\Tools\CreateWithdrawalTool;
+use FireflyIII\Mcp\Tools\GetAccountTool;
+use FireflyIII\Mcp\Tools\GetBudgetTool;
+use FireflyIII\Mcp\Tools\GetCategoryTool;
+use FireflyIII\Mcp\Tools\GetTagTool;
+use FireflyIII\Mcp\Tools\GetTransactionTool;
+use FireflyIII\Mcp\Tools\InsightExpenseTool;
+use FireflyIII\Mcp\Tools\InsightIncomeTool;
+use FireflyIII\Mcp\Tools\ListAccountsTool;
+use FireflyIII\Mcp\Tools\ListBillsTool;
+use FireflyIII\Mcp\Tools\ListBudgetsTool;
+use FireflyIII\Mcp\Tools\ListCategoriesTool;
+use FireflyIII\Mcp\Tools\ListPiggyBanksTool;
+use FireflyIII\Mcp\Tools\ListRulesTool;
+use FireflyIII\Mcp\Tools\ListTagsTool;
+use FireflyIII\Mcp\Tools\ListTransactionsTool;
+use FireflyIII\Mcp\Tools\ListWebhooksTool;
+use FireflyIII\Mcp\Tools\SearchTransactionsTool;
+use FireflyIII\Mcp\Tools\SummaryBasicTool;
 use Laravel\Mcp\Server;
 
 /**
@@ -40,31 +62,34 @@ final class FireflyServer extends Server
 
     protected string $version;
 
-    // Populated by Sprint Teammates B (read) and C (write); see WIP_MCP §4.
     protected array $tools = [
-        // Sprint B — read tools §4.1 core entity list/get
-        \FireflyIII\Mcp\Tools\ListAccountsTool::class,
-        \FireflyIII\Mcp\Tools\GetAccountTool::class,
-        \FireflyIII\Mcp\Tools\ListTransactionsTool::class,
-        \FireflyIII\Mcp\Tools\GetTransactionTool::class,
-        \FireflyIII\Mcp\Tools\ListBudgetsTool::class,
-        \FireflyIII\Mcp\Tools\GetBudgetTool::class,
-        \FireflyIII\Mcp\Tools\ListCategoriesTool::class,
-        \FireflyIII\Mcp\Tools\GetCategoryTool::class,
-        \FireflyIII\Mcp\Tools\ListTagsTool::class,
-        \FireflyIII\Mcp\Tools\GetTagTool::class,
-        // Sprint B — §4.2 search
-        \FireflyIII\Mcp\Tools\SearchTransactionsTool::class,
-        // Sprint B — §4.3 power-user
-        \FireflyIII\Mcp\Tools\ListBillsTool::class,
-        \FireflyIII\Mcp\Tools\ListRulesTool::class,
-        \FireflyIII\Mcp\Tools\ListPiggyBanksTool::class,
-        \FireflyIII\Mcp\Tools\ListWebhooksTool::class,
-        // Sprint B — §4.4 aggregates
-        \FireflyIII\Mcp\Tools\SummaryBasicTool::class,
-        \FireflyIII\Mcp\Tools\InsightExpenseTool::class,
-        \FireflyIII\Mcp\Tools\InsightIncomeTool::class,
-        \FireflyIII\Mcp\Tools\ChartDataTool::class
+        // §4.1 core entity list/get
+        ListAccountsTool::class,
+        GetAccountTool::class,
+        ListTransactionsTool::class,
+        GetTransactionTool::class,
+        ListBudgetsTool::class,
+        GetBudgetTool::class,
+        ListCategoriesTool::class,
+        GetCategoryTool::class,
+        ListTagsTool::class,
+        GetTagTool::class,
+        // §4.2 search
+        SearchTransactionsTool::class,
+        // §4.3 power-user
+        ListBillsTool::class,
+        ListRulesTool::class,
+        ListPiggyBanksTool::class,
+        ListWebhooksTool::class,
+        // §4.4 aggregates
+        SummaryBasicTool::class,
+        InsightExpenseTool::class,
+        InsightIncomeTool::class,
+        ChartDataTool::class,
+        // §4.5 writes
+        CreateWithdrawalTool::class,
+        CreateDepositTool::class,
+        CreateTransferTool::class
     ];
 
     // Populated by Sprint Teammate D; see WIP_MCP §5.
