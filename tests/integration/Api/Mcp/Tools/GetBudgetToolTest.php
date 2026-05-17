@@ -27,11 +27,12 @@ namespace Tests\integration\Api\Mcp\Tools;
 use FireflyIII\Mcp\Tools\GetBudgetTool;
 use Tests\integration\Api\Mcp\Concerns\EnsuresPassportKeys;
 use Tests\integration\Api\Mcp\Concerns\InvokesMcpServer;
+use Tests\integration\Api\Mcp\Concerns\SeedsFireflyData;
 use Tests\integration\TestCase;
 
 /**
- * Covers WIP_MCP §4.1 GetBudgetTool not-found error path; happy path requires
- * BudgetEnrichment inside the tool (queued observation A2).
+ * Covers WIP_MCP §4.1 GetBudgetTool happy path with a seeded budget plus the not-found
+ * error path.
  *
  * @internal
  *
@@ -41,6 +42,23 @@ final class GetBudgetToolTest extends TestCase
 {
     use EnsuresPassportKeys;
     use InvokesMcpServer;
+    use SeedsFireflyData;
+
+    /**
+     * @covers \FireflyIII\Mcp\Tools\GetBudgetTool
+     */
+    public function testGivenExistingBudgetWhenGettingThenReturnsFlatEnvelope(): void
+    {
+        $user   = $this->createAuthenticatedUser();
+        $budget = $this->createBudget($user, 'Daily');
+
+        $response = $this->invokeTool($user, GetBudgetTool::class, ['id' => $budget->id]);
+        $response->assertOk();
+
+        $payload = $this->decodeJson($response);
+        self::assertSame((int) $budget->id, $payload['data']['id']);
+        self::assertSame('Daily', $payload['data']['name']);
+    }
 
     /**
      * @covers \FireflyIII\Mcp\Tools\GetBudgetTool

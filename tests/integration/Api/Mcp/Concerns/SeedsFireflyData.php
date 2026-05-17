@@ -30,8 +30,13 @@ use FireflyIII\Enums\TransactionTypeEnum;
 use FireflyIII\Models\Account;
 use FireflyIII\Models\AccountMeta;
 use FireflyIII\Models\AccountType;
+use FireflyIII\Models\Bill;
+use FireflyIII\Models\Budget;
+use FireflyIII\Models\Category;
+use FireflyIII\Models\PiggyBank;
 use FireflyIII\Models\TransactionCurrency;
 use FireflyIII\Models\TransactionGroup;
+use FireflyIII\Models\Webhook;
 use FireflyIII\Repositories\TransactionGroup\TransactionGroupRepositoryInterface;
 use FireflyIII\User;
 
@@ -63,6 +68,79 @@ trait SeedsFireflyData
         ]);
 
         return $account;
+    }
+
+    protected function createBill(User $user, string $name = 'Internet'): Bill
+    {
+        $currency = $this->primaryCurrency();
+
+        return Bill::create([
+            'user_id'                 => $user->id,
+            'user_group_id'           => $user->user_group_id,
+            'name'                    => $name,
+            'match'                   => $name,
+            'amount_min'              => '10.00',
+            'amount_max'              => '30.00',
+            'date'                    => Carbon::now(),
+            'repeat_freq'             => 'monthly',
+            'skip'                    => 0,
+            'automatch'               => true,
+            'active'                  => true,
+            'transaction_currency_id' => $currency->id
+        ]);
+    }
+
+    protected function createBudget(User $user, string $name = 'Daily'): Budget
+    {
+        return Budget::create([
+            'user_id'       => $user->id,
+            'user_group_id' => $user->user_group_id,
+            'name'          => $name,
+            'active'        => true,
+            'order'         => 1
+        ]);
+    }
+
+    protected function createCategory(User $user, string $name = 'Food'): Category
+    {
+        return Category::create([
+            'user_id'       => $user->id,
+            'user_group_id' => $user->user_group_id,
+            'name'          => $name
+        ]);
+    }
+
+    protected function createPiggyBank(User $user, string $name = 'Vacation'): PiggyBank
+    {
+        $asset    = $this->createAccount($user, AccountTypeEnum::ASSET, sprintf('Piggy host %s', $name));
+        $currency = $this->primaryCurrency();
+        $piggy    = PiggyBank::create([
+            'name'                    => $name,
+            'order'                   => 1,
+            'target_amount'           => '100.00',
+            'start_date'              => Carbon::now()->toDateString(),
+            'active'                  => true,
+            'transaction_currency_id' => $currency->id
+        ]);
+        $piggy->accounts()->attach($asset, ['current_amount' => '0', 'native_current_amount' => '0']);
+
+        return $piggy;
+    }
+
+    protected function createWebhook(User $user, string $title = 'Test webhook'): Webhook
+    {
+        // The repository filters to "upgraded" rows: delivery=1, response=1, trigger=1.
+        return Webhook::create([
+            'user_id'       => $user->id,
+            'user_group_id' => $user->user_group_id,
+            'title'         => $title,
+            'url'           => 'https://example.test/hook',
+            'secret'        => 'a-test-secret',
+            'active'        => true,
+            'trigger'       => 1,
+            'response'      => 1,
+            'delivery'      => 1
+        ]);
     }
 
     /**

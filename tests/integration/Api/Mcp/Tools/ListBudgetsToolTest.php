@@ -27,10 +27,12 @@ namespace Tests\integration\Api\Mcp\Tools;
 use FireflyIII\Mcp\Tools\ListBudgetsTool;
 use Tests\integration\Api\Mcp\Concerns\EnsuresPassportKeys;
 use Tests\integration\Api\Mcp\Concerns\InvokesMcpServer;
+use Tests\integration\Api\Mcp\Concerns\SeedsFireflyData;
 use Tests\integration\TestCase;
 
 /**
- * Covers WIP_MCP §4.1 ListBudgetsTool. Empty-list happy path plus active filter argument.
+ * Covers WIP_MCP §4.1 ListBudgetsTool. Asserts the seeded happy path returns the budget in
+ * the reduced envelope and the active filter is accepted.
  *
  * @internal
  *
@@ -40,6 +42,7 @@ final class ListBudgetsToolTest extends TestCase
 {
     use EnsuresPassportKeys;
     use InvokesMcpServer;
+    use SeedsFireflyData;
 
     /**
      * @covers \FireflyIII\Mcp\Tools\ListBudgetsTool
@@ -57,14 +60,18 @@ final class ListBudgetsToolTest extends TestCase
     /**
      * @covers \FireflyIII\Mcp\Tools\ListBudgetsTool
      */
-    public function testGivenAuthenticatedUserWhenListingBudgetsThenReturnsReducedEnvelope(): void
+    public function testGivenSeededBudgetWhenListingBudgetsThenReturnsBudgetInEnvelope(): void
     {
-        $user     = $this->createAuthenticatedUser();
+        $user   = $this->createAuthenticatedUser();
+        $budget = $this->createBudget($user, 'Daily');
+
         $response = $this->invokeTool($user, ListBudgetsTool::class, []);
         $response->assertOk();
 
         $payload = $this->decodeJson($response);
-        self::assertSame([], $payload['data']);
+        self::assertCount(1, $payload['data']);
+        self::assertSame((int) $budget->id, $payload['data'][0]['id']);
+        self::assertSame('Daily', $payload['data'][0]['name']);
         self::assertArrayHasKey('pagination', $payload['meta']);
     }
 

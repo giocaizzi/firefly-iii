@@ -27,10 +27,11 @@ namespace Tests\integration\Api\Mcp\Tools;
 use FireflyIII\Mcp\Tools\ListBillsTool;
 use Tests\integration\Api\Mcp\Concerns\EnsuresPassportKeys;
 use Tests\integration\Api\Mcp\Concerns\InvokesMcpServer;
+use Tests\integration\Api\Mcp\Concerns\SeedsFireflyData;
 use Tests\integration\TestCase;
 
 /**
- * Covers WIP_MCP §4.3 ListBillsTool — empty-list happy path plus active filter.
+ * Covers WIP_MCP §4.3 ListBillsTool — happy path with a seeded bill plus active filter.
  *
  * @internal
  *
@@ -40,6 +41,7 @@ final class ListBillsToolTest extends TestCase
 {
     use EnsuresPassportKeys;
     use InvokesMcpServer;
+    use SeedsFireflyData;
 
     /**
      * @covers \FireflyIII\Mcp\Tools\ListBillsTool
@@ -57,14 +59,18 @@ final class ListBillsToolTest extends TestCase
     /**
      * @covers \FireflyIII\Mcp\Tools\ListBillsTool
      */
-    public function testGivenAuthenticatedUserWhenListingBillsThenReturnsReducedEnvelope(): void
+    public function testGivenSeededBillWhenListingBillsThenReturnsBillInEnvelope(): void
     {
-        $user     = $this->createAuthenticatedUser();
+        $user = $this->createAuthenticatedUser();
+        $bill = $this->createBill($user, 'Internet');
+
         $response = $this->invokeTool($user, ListBillsTool::class, []);
         $response->assertOk();
 
         $payload = $this->decodeJson($response);
-        self::assertSame([], $payload['data']);
+        self::assertCount(1, $payload['data']);
+        self::assertSame((int) $bill->id, $payload['data'][0]['id']);
+        self::assertSame('Internet', $payload['data'][0]['name']);
         self::assertArrayHasKey('pagination', $payload['meta']);
     }
 

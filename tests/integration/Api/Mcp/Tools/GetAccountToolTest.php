@@ -24,15 +24,16 @@ declare(strict_types=1);
 
 namespace Tests\integration\Api\Mcp\Tools;
 
+use FireflyIII\Enums\AccountTypeEnum;
 use FireflyIII\Mcp\Tools\GetAccountTool;
 use Tests\integration\Api\Mcp\Concerns\EnsuresPassportKeys;
 use Tests\integration\Api\Mcp\Concerns\InvokesMcpServer;
+use Tests\integration\Api\Mcp\Concerns\SeedsFireflyData;
 use Tests\integration\TestCase;
 
 /**
- * Covers WIP_MCP §4.1 GetAccountTool. The happy path requires AccountEnrichment to run
- * inside the tool (currently absent — see Sprint-E queued observation A1), so the test
- * exercises the not-found error path which goes through the same auth + repository scope.
+ * Covers WIP_MCP §4.1 GetAccountTool. Asserts the flat reduced envelope returned for an
+ * existing account plus the not-found error path.
  *
  * @internal
  *
@@ -42,6 +43,24 @@ final class GetAccountToolTest extends TestCase
 {
     use EnsuresPassportKeys;
     use InvokesMcpServer;
+    use SeedsFireflyData;
+
+    /**
+     * @covers \FireflyIII\Mcp\Tools\GetAccountTool
+     */
+    public function testGivenExistingAccountWhenGettingByIdThenReturnsFlatEnvelope(): void
+    {
+        $user    = $this->createAuthenticatedUser();
+        $account = $this->createAccount($user, AccountTypeEnum::ASSET, 'Checking');
+
+        $response = $this->invokeTool($user, GetAccountTool::class, ['id' => $account->id]);
+        $response->assertOk();
+
+        $payload = $this->decodeJson($response);
+        self::assertSame((int) $account->id, $payload['data']['id']);
+        self::assertSame('Checking', $payload['data']['name']);
+        self::assertSame('asset', $payload['data']['type']);
+    }
 
     /**
      * @covers \FireflyIII\Mcp\Tools\GetAccountTool

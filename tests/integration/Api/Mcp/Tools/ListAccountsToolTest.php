@@ -24,6 +24,7 @@ declare(strict_types=1);
 
 namespace Tests\integration\Api\Mcp\Tools;
 
+use FireflyIII\Enums\AccountTypeEnum;
 use FireflyIII\Mcp\Tools\ListAccountsTool;
 use Tests\integration\Api\Mcp\Concerns\EnsuresPassportKeys;
 use Tests\integration\Api\Mcp\Concerns\InvokesMcpServer;
@@ -32,7 +33,7 @@ use Tests\integration\TestCase;
 
 /**
  * Covers WIP_MCP §4.1 ListAccountsTool. Asserts the reduced JSON:API envelope shape and the
- * type-filter behaviour for an empty result set (no accounts seeded for the user).
+ * type-filter behaviour for a seeded asset account.
  *
  * @internal
  *
@@ -47,22 +48,6 @@ final class ListAccountsToolTest extends TestCase
     /**
      * @covers \FireflyIII\Mcp\Tools\ListAccountsTool
      */
-    public function testGivenAuthenticatedUserWhenListingAccountsThenReturnsReducedEnvelope(): void
-    {
-        $user     = $this->createAuthenticatedUser();
-        $response = $this->invokeTool($user, ListAccountsTool::class, ['type' => 'asset']);
-        $response->assertOk();
-
-        $payload = $this->decodeJson($response);
-        self::assertSame([], $payload['data']);
-        self::assertSame(50, $payload['meta']['pagination']['per_page']);
-        self::assertSame(1, $payload['meta']['pagination']['current_page']);
-        self::assertArrayNotHasKey('included', $payload);
-    }
-
-    /**
-     * @covers \FireflyIII\Mcp\Tools\ListAccountsTool
-     */
     public function testGivenLimitFilterWhenListingAccountsThenPaginationReflectsArgument(): void
     {
         $user     = $this->createAuthenticatedUser();
@@ -71,6 +56,27 @@ final class ListAccountsToolTest extends TestCase
 
         $payload = $this->decodeJson($response);
         self::assertSame(5, $payload['meta']['pagination']['per_page']);
+    }
+
+    /**
+     * @covers \FireflyIII\Mcp\Tools\ListAccountsTool
+     */
+    public function testGivenSeededAssetAccountWhenListingAccountsThenReturnsAccountInEnvelope(): void
+    {
+        $user    = $this->createAuthenticatedUser();
+        $account = $this->createAccount($user, AccountTypeEnum::ASSET, 'Checking');
+
+        $response = $this->invokeTool($user, ListAccountsTool::class, ['type' => 'asset']);
+        $response->assertOk();
+
+        $payload = $this->decodeJson($response);
+        self::assertCount(1, $payload['data']);
+        self::assertSame((int) $account->id, $payload['data'][0]['id']);
+        self::assertSame('Checking', $payload['data'][0]['name']);
+        self::assertSame('asset', $payload['data'][0]['type']);
+        self::assertSame(50, $payload['meta']['pagination']['per_page']);
+        self::assertSame(1, $payload['meta']['pagination']['current_page']);
+        self::assertArrayNotHasKey('included', $payload);
     }
 
     protected function setUp(): void

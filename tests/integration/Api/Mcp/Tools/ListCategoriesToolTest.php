@@ -27,10 +27,11 @@ namespace Tests\integration\Api\Mcp\Tools;
 use FireflyIII\Mcp\Tools\ListCategoriesTool;
 use Tests\integration\Api\Mcp\Concerns\EnsuresPassportKeys;
 use Tests\integration\Api\Mcp\Concerns\InvokesMcpServer;
+use Tests\integration\Api\Mcp\Concerns\SeedsFireflyData;
 use Tests\integration\TestCase;
 
 /**
- * Covers WIP_MCP §4.1 ListCategoriesTool — empty-list happy path with pagination.
+ * Covers WIP_MCP §4.1 ListCategoriesTool — happy path with a seeded category.
  *
  * @internal
  *
@@ -40,18 +41,23 @@ final class ListCategoriesToolTest extends TestCase
 {
     use EnsuresPassportKeys;
     use InvokesMcpServer;
+    use SeedsFireflyData;
 
     /**
      * @covers \FireflyIII\Mcp\Tools\ListCategoriesTool
      */
-    public function testGivenAuthenticatedUserWhenListingCategoriesThenReturnsReducedEnvelope(): void
+    public function testGivenSeededCategoryWhenListingCategoriesThenReturnsCategoryInEnvelope(): void
     {
         $user     = $this->createAuthenticatedUser();
+        $category = $this->createCategory($user, 'Food');
+
         $response = $this->invokeTool($user, ListCategoriesTool::class, []);
         $response->assertOk();
 
         $payload = $this->decodeJson($response);
-        self::assertSame([], $payload['data']);
+        self::assertCount(1, $payload['data']);
+        self::assertSame((int) $category->id, $payload['data'][0]['id']);
+        self::assertSame('Food', $payload['data'][0]['name']);
         self::assertSame(1, $payload['meta']['pagination']['current_page']);
     }
 

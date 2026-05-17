@@ -24,15 +24,16 @@ declare(strict_types=1);
 
 namespace Tests\integration\Api\Mcp\Tools;
 
+use FireflyIII\Enums\AccountTypeEnum;
 use FireflyIII\Mcp\Tools\ListTransactionsTool;
 use Tests\integration\Api\Mcp\Concerns\EnsuresPassportKeys;
 use Tests\integration\Api\Mcp\Concerns\InvokesMcpServer;
+use Tests\integration\Api\Mcp\Concerns\SeedsFireflyData;
 use Tests\integration\TestCase;
 
 /**
- * Covers WIP_MCP §4.1 ListTransactionsTool. Verifies the reduced envelope and the type
- * filter shape against an empty journal set — happy path with seeded data fails because
- * the tool omits TransactionGroupEnrichment (queued observation A2).
+ * Covers WIP_MCP §4.1 ListTransactionsTool. Verifies the reduced envelope returned for a
+ * seeded withdrawal plus the type-filter argument shape.
  *
  * @internal
  *
@@ -42,19 +43,27 @@ final class ListTransactionsToolTest extends TestCase
 {
     use EnsuresPassportKeys;
     use InvokesMcpServer;
+    use SeedsFireflyData;
 
     /**
      * @covers \FireflyIII\Mcp\Tools\ListTransactionsTool
      */
-    public function testGivenAuthenticatedUserWhenListingTransactionsThenReturnsReducedEnvelope(): void
+    public function testGivenSeededWithdrawalWhenListingTransactionsThenReturnsItemInEnvelope(): void
     {
-        $user     = $this->createAuthenticatedUser();
+        $user        = $this->createAuthenticatedUser();
+        $source      = $this->createAccount($user, AccountTypeEnum::ASSET, 'Checking');
+        $destination = $this->createAccount($user, AccountTypeEnum::EXPENSE, 'Groceries');
+        $this->createWithdrawal($user, $source, $destination, '12.50', 'Lunch');
+
         $response = $this->invokeTool($user, ListTransactionsTool::class, []);
         $response->assertOk();
 
         $payload = $this->decodeJson($response);
-        self::assertSame([], $payload['data']);
-        self::assertSame(0, $payload['meta']['pagination']['total']);
+        self::assertCount(1, $payload['data']);
+        self::assertArrayHasKey('id', $payload['data'][0]);
+        self::assertArrayHasKey('transactions', $payload['data'][0]);
+        self::assertSame('Lunch', $payload['data'][0]['transactions'][0]['description']);
+        self::assertSame('12.500000000000', $payload['data'][0]['transactions'][0]['amount']);
         self::assertSame(1, $payload['meta']['pagination']['current_page']);
     }
 

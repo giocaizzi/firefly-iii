@@ -24,15 +24,16 @@ declare(strict_types=1);
 
 namespace Tests\integration\Api\Mcp\Tools;
 
+use FireflyIII\Enums\AccountTypeEnum;
 use FireflyIII\Mcp\Tools\GetTransactionTool;
 use Tests\integration\Api\Mcp\Concerns\EnsuresPassportKeys;
 use Tests\integration\Api\Mcp\Concerns\InvokesMcpServer;
+use Tests\integration\Api\Mcp\Concerns\SeedsFireflyData;
 use Tests\integration\TestCase;
 
 /**
- * Covers WIP_MCP §4.1 GetTransactionTool. The happy path requires TransactionGroupEnrichment
- * inside the tool (queued observation A2), so this test exercises the not-found error path
- * which still verifies the user-scoped repository lookup.
+ * Covers WIP_MCP §4.1 GetTransactionTool. Asserts the flat reduced envelope returned for
+ * an existing transaction group plus the not-found error path.
  *
  * @internal
  *
@@ -42,6 +43,26 @@ final class GetTransactionToolTest extends TestCase
 {
     use EnsuresPassportKeys;
     use InvokesMcpServer;
+    use SeedsFireflyData;
+
+    /**
+     * @covers \FireflyIII\Mcp\Tools\GetTransactionTool
+     */
+    public function testGivenExistingTransactionWhenGettingThenReturnsFlatEnvelope(): void
+    {
+        $user        = $this->createAuthenticatedUser();
+        $source      = $this->createAccount($user, AccountTypeEnum::ASSET, 'Checking');
+        $destination = $this->createAccount($user, AccountTypeEnum::EXPENSE, 'Groceries');
+        $group       = $this->createWithdrawal($user, $source, $destination, '12.50', 'Lunch');
+
+        $response = $this->invokeTool($user, GetTransactionTool::class, ['id' => $group->id]);
+        $response->assertOk();
+
+        $payload = $this->decodeJson($response);
+        self::assertSame((int) $group->id, $payload['data']['id']);
+        self::assertSame('Lunch', $payload['data']['transactions'][0]['description']);
+        self::assertSame('12.500000000000', $payload['data']['transactions'][0]['amount']);
+    }
 
     /**
      * @covers \FireflyIII\Mcp\Tools\GetTransactionTool

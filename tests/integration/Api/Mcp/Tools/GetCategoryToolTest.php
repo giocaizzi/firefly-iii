@@ -27,11 +27,12 @@ namespace Tests\integration\Api\Mcp\Tools;
 use FireflyIII\Mcp\Tools\GetCategoryTool;
 use Tests\integration\Api\Mcp\Concerns\EnsuresPassportKeys;
 use Tests\integration\Api\Mcp\Concerns\InvokesMcpServer;
+use Tests\integration\Api\Mcp\Concerns\SeedsFireflyData;
 use Tests\integration\TestCase;
 
 /**
- * Covers WIP_MCP §4.1 GetCategoryTool not-found error path; happy path requires
- * CategoryEnrichment inside the tool (queued observation A2).
+ * Covers WIP_MCP §4.1 GetCategoryTool happy path with a seeded category plus the
+ * not-found error path.
  *
  * @internal
  *
@@ -41,6 +42,23 @@ final class GetCategoryToolTest extends TestCase
 {
     use EnsuresPassportKeys;
     use InvokesMcpServer;
+    use SeedsFireflyData;
+
+    /**
+     * @covers \FireflyIII\Mcp\Tools\GetCategoryTool
+     */
+    public function testGivenExistingCategoryWhenGettingThenReturnsFlatEnvelope(): void
+    {
+        $user     = $this->createAuthenticatedUser();
+        $category = $this->createCategory($user, 'Food');
+
+        $response = $this->invokeTool($user, GetCategoryTool::class, ['id' => $category->id]);
+        $response->assertOk();
+
+        $payload = $this->decodeJson($response);
+        self::assertSame((int) $category->id, $payload['data']['id']);
+        self::assertSame('Food', $payload['data']['name']);
+    }
 
     /**
      * @covers \FireflyIII\Mcp\Tools\GetCategoryTool
