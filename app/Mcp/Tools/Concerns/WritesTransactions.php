@@ -24,6 +24,7 @@ declare(strict_types=1);
 
 namespace FireflyIII\Mcp\Tools\Concerns;
 
+use Carbon\Carbon;
 use FireflyIII\Api\V1\Requests\Models\Transaction\StoreRequest;
 use FireflyIII\Helpers\Collector\GroupCollectorInterface;
 use FireflyIII\Models\TransactionGroup;
@@ -121,7 +122,7 @@ trait WritesTransactions
     {
         $line = [
             'type'             => $type,
-            'date'             => (string) ($input['date'] ?? ''),
+            'date'             => $this->parseLineDate($input['date'] ?? null),
             'amount'           => (string) ($input['amount'] ?? ''),
             'description'      => array_key_exists('description', $input) ? (string) $input['description'] : null,
             'source_id'        => array_key_exists('source_id', $input) ? (int) $input['source_id'] : null,
@@ -287,6 +288,28 @@ trait WritesTransactions
         }
 
         return $result;
+    }
+
+    /**
+     * Convert the raw MCP `date` argument into a Carbon instance.
+     *
+     * Matches the REST `StoreRequest::dateFromValue()` contract so the downstream
+     * TransactionJournalFactory can call `setTimezone()` on the value. Empty input
+     * stays as an empty string so the FormRequest's `required` rule still rejects it
+     * cleanly during validation (an empty string surfaces a validation error rather
+     * than a TypeError).
+     */
+    protected function parseLineDate(mixed $value): Carbon|string
+    {
+        if (!is_string($value) || '' === $value) {
+            return '';
+        }
+
+        try {
+            return new Carbon($value, config('app.timezone'));
+        } catch (Throwable) {
+            return $value;
+        }
     }
 
     /**

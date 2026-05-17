@@ -48,7 +48,7 @@ final class CreateDepositToolTest extends TestCase
     /**
      * @covers \FireflyIII\Mcp\Tools\CreateDepositTool
      */
-    public function testGivenMissingDescriptionWhenCreatingDepositThenRespondsWithErrorAndDoesNotWrite(): void
+    public function testGivenMissingAmountWhenCreatingDepositThenRespondsWithErrorAndDoesNotWrite(): void
     {
         $user        = $this->createAuthenticatedUser();
         $source      = $this->createAccount($user, AccountTypeEnum::REVENUE, 'Salary');
@@ -58,8 +58,8 @@ final class CreateDepositToolTest extends TestCase
         $response = $this->invokeTool($user, CreateDepositTool::class, [
             'source_id'      => $source->id,
             'destination_id' => $destination->id,
-            'amount'         => '500.00',
-            'date'           => '2026-05-17'
+            'date'           => '2026-05-17',
+            'description'    => 'Salary payment'
         ]);
         $response->assertHasErrors();
 
