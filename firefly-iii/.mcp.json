@@ -4,10 +4,7 @@
       "type": "http",
       "url": "${FIREFLY_URL}/api/v1/mcp",
       "headers": {
-        "Authorization": "Bearer ${FIREFLY_PAT}",
-        "Accept": "application/json, text/event-stream",
-        "CF-Access-Client-Id": "${FIREFLY_CF_ACCESS_CLIENT_ID}",
-        "CF-Access-Client-Secret": "${FIREFLY_CF_ACCESS_CLIENT_SECRET}"
+        "Accept": "application/json, text/event-stream"
       }
     }
   }
