@@ -28,6 +28,10 @@ use FireflyIII\Mcp\Resources\AccountTypesCatalogResource;
 use FireflyIII\Mcp\Resources\CurrenciesCatalogResource;
 use FireflyIII\Mcp\Resources\LinkTypesCatalogResource;
 use FireflyIII\Mcp\Resources\TransactionTypesCatalogResource;
+use FireflyIII\Mcp\Resources\UserAccountsResource;
+use FireflyIII\Mcp\Resources\UserBudgetsResource;
+use FireflyIII\Mcp\Resources\UserCategoriesResource;
+use FireflyIII\Mcp\Resources\UserTagsResource;
 use FireflyIII\Mcp\Tools\BulkCreateTransactionsTool;
 use FireflyIII\Mcp\Tools\ChartDataTool;
 use FireflyIII\Mcp\Tools\CreateDepositTool;
@@ -107,7 +111,11 @@ final class FireflyServer extends Server
         CurrenciesCatalogResource::class,
         AccountTypesCatalogResource::class,
         TransactionTypesCatalogResource::class,
-        LinkTypesCatalogResource::class
+        LinkTypesCatalogResource::class,
+        UserAccountsResource::class,
+        UserTagsResource::class,
+        UserCategoriesResource::class,
+        UserBudgetsResource::class
     ];
 
     protected string $instructions = <<<'MARKDOWN'
