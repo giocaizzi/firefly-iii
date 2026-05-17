@@ -106,6 +106,48 @@ final class BulkCreateTransactionsToolTest extends TestCase
         self::assertSame($before, TransactionJournal::count(), 'No journals should persist when any item fails pre-flight.');
     }
 
+    /**
+     * @covers \FireflyIII\Mcp\Tools\BulkCreateTransactionsTool
+     */
+    public function testGivenTwoValidItemsWhenBulkCreatingThenPersistsBothAndReturnsIds(): void
+    {
+        $user        = $this->createAuthenticatedUser();
+        $source      = $this->createAccount($user, AccountTypeEnum::ASSET, 'Checking');
+        $destination = $this->createAccount($user, AccountTypeEnum::EXPENSE, 'Groceries');
+        $before      = TransactionJournal::count();
+
+        $response = $this->invokeTool($user, BulkCreateTransactionsTool::class, [
+            'transactions' => [
+                [
+                    'type'             => 'withdrawal',
+                    'source_id'        => $source->id,
+                    'destination_id'   => $destination->id,
+                    'destination_name' => $destination->name,
+                    'amount'           => '10.00',
+                    'date'             => '2026-05-17',
+                    'description'      => 'Item 0'
+                ],
+                [
+                    'type'             => 'withdrawal',
+                    'source_id'        => $source->id,
+                    'destination_id'   => $destination->id,
+                    'destination_name' => $destination->name,
+                    'amount'           => '20.00',
+                    'date'             => '2026-05-17',
+                    'description'      => 'Item 1'
+                ]
+            ]
+        ]);
+        $response->assertOk();
+
+        $payload = $this->decodeJson($response);
+        self::assertSame(2, $payload['data']['created']);
+        self::assertSame(0, $payload['data']['replayed']);
+        self::assertSame(2, $payload['data']['total']);
+        self::assertCount(2, $payload['data']['transactions']);
+        self::assertSame($before + 2, TransactionJournal::count());
+    }
+
     protected function setUp(): void
     {
         parent::setUp();

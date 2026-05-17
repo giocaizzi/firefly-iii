@@ -93,6 +93,32 @@ final class CreateTransferToolTest extends TestCase
         self::assertSame($before, TransactionJournal::count());
     }
 
+    /**
+     * @covers \FireflyIII\Mcp\Tools\CreateTransferTool
+     */
+    public function testGivenSameCurrencyAccountsWhenCreatingTransferThenPersistsAndReturnsJournalId(): void
+    {
+        $user        = $this->createAuthenticatedUser();
+        $source      = $this->createAccount($user, AccountTypeEnum::ASSET, 'Checking');
+        $destination = $this->createAccount($user, AccountTypeEnum::ASSET, 'Savings');
+        $before      = TransactionJournal::count();
+
+        $response = $this->invokeTool($user, CreateTransferTool::class, [
+            'source_id'      => $source->id,
+            'destination_id' => $destination->id,
+            'amount'         => '25.00',
+            'date'           => '2026-05-17',
+            'description'    => 'Move to savings'
+        ]);
+        $response->assertOk();
+
+        $payload = $this->decodeJson($response);
+        self::assertArrayHasKey('id', $payload['data']);
+        self::assertSame($before + 1, TransactionJournal::count());
+        $journalId = (int) $payload['data']['transactions'][0]['transaction_journal_id'];
+        self::assertNotNull(TransactionJournal::find($journalId));
+    }
+
     protected function setUp(): void
     {
         parent::setUp();

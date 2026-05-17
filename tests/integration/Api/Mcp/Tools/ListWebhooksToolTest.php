@@ -28,11 +28,12 @@ use FireflyIII\Mcp\Tools\ListWebhooksTool;
 use FireflyIII\Support\Facades\FireflyConfig;
 use Tests\integration\Api\Mcp\Concerns\EnsuresPassportKeys;
 use Tests\integration\Api\Mcp\Concerns\InvokesMcpServer;
+use Tests\integration\Api\Mcp\Concerns\SeedsFireflyData;
 use Tests\integration\TestCase;
 
 /**
- * Covers WIP_MCP §4.3 ListWebhooksTool. The tool honours the global `allow_webhooks` feature
- * flag — disabled returns an MCP error; enabled returns the reduced (empty) envelope.
+ * Covers WIP_MCP §4.3 ListWebhooksTool. Disabled flag returns an MCP error; enabled
+ * returns the seeded webhook inside the reduced envelope.
  *
  * @internal
  *
@@ -42,6 +43,27 @@ final class ListWebhooksToolTest extends TestCase
 {
     use EnsuresPassportKeys;
     use InvokesMcpServer;
+    use SeedsFireflyData;
+
+    /**
+     * @covers \FireflyIII\Mcp\Tools\ListWebhooksTool
+     */
+    public function testGivenSeededWebhookWhenListingThenReturnsWebhookInEnvelope(): void
+    {
+        FireflyConfig::set('allow_webhooks', true);
+
+        $user    = $this->createAuthenticatedUser();
+        $webhook = $this->createWebhook($user, 'Test webhook');
+
+        $response = $this->invokeTool($user, ListWebhooksTool::class, []);
+        $response->assertOk();
+
+        $payload = $this->decodeJson($response);
+        self::assertCount(1, $payload['data']);
+        self::assertSame((int) $webhook->id, $payload['data'][0]['id']);
+        self::assertSame('Test webhook', $payload['data'][0]['title']);
+        self::assertArrayHasKey('pagination', $payload['meta']);
+    }
 
     /**
      * @covers \FireflyIII\Mcp\Tools\ListWebhooksTool
@@ -53,22 +75,6 @@ final class ListWebhooksToolTest extends TestCase
         $user     = $this->createAuthenticatedUser();
         $response = $this->invokeTool($user, ListWebhooksTool::class, []);
         $response->assertHasErrors(['Webhooks are not enabled']);
-    }
-
-    /**
-     * @covers \FireflyIII\Mcp\Tools\ListWebhooksTool
-     */
-    public function testGivenWebhooksEnabledWhenListingThenReturnsReducedEnvelope(): void
-    {
-        FireflyConfig::set('allow_webhooks', true);
-
-        $user     = $this->createAuthenticatedUser();
-        $response = $this->invokeTool($user, ListWebhooksTool::class, []);
-        $response->assertOk();
-
-        $payload = $this->decodeJson($response);
-        self::assertSame([], $payload['data']);
-        self::assertArrayHasKey('pagination', $payload['meta']);
     }
 
     protected function setUp(): void

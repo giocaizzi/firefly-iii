@@ -27,10 +27,11 @@ namespace Tests\integration\Api\Mcp\Tools;
 use FireflyIII\Mcp\Tools\ListPiggyBanksTool;
 use Tests\integration\Api\Mcp\Concerns\EnsuresPassportKeys;
 use Tests\integration\Api\Mcp\Concerns\InvokesMcpServer;
+use Tests\integration\Api\Mcp\Concerns\SeedsFireflyData;
 use Tests\integration\TestCase;
 
 /**
- * Covers WIP_MCP §4.3 ListPiggyBanksTool — empty-list happy path.
+ * Covers WIP_MCP §4.3 ListPiggyBanksTool — happy path with a seeded piggy bank.
  *
  * @internal
  *
@@ -40,18 +41,23 @@ final class ListPiggyBanksToolTest extends TestCase
 {
     use EnsuresPassportKeys;
     use InvokesMcpServer;
+    use SeedsFireflyData;
 
     /**
      * @covers \FireflyIII\Mcp\Tools\ListPiggyBanksTool
      */
-    public function testGivenAuthenticatedUserWhenListingPiggyBanksThenReturnsReducedEnvelope(): void
+    public function testGivenSeededPiggyBankWhenListingPiggyBanksThenReturnsItemInEnvelope(): void
     {
-        $user     = $this->createAuthenticatedUser();
+        $user  = $this->createAuthenticatedUser();
+        $piggy = $this->createPiggyBank($user, 'Vacation');
+
         $response = $this->invokeTool($user, ListPiggyBanksTool::class, []);
         $response->assertOk();
 
         $payload = $this->decodeJson($response);
-        self::assertSame([], $payload['data']);
+        self::assertCount(1, $payload['data']);
+        self::assertSame((int) $piggy->id, $payload['data'][0]['id']);
+        self::assertSame('Vacation', $payload['data'][0]['name']);
         self::assertSame(1, $payload['meta']['pagination']['current_page']);
     }
 

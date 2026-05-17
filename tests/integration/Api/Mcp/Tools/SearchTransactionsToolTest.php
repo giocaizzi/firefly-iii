@@ -24,15 +24,16 @@ declare(strict_types=1);
 
 namespace Tests\integration\Api\Mcp\Tools;
 
+use FireflyIII\Enums\AccountTypeEnum;
 use FireflyIII\Mcp\Tools\SearchTransactionsTool;
 use Tests\integration\Api\Mcp\Concerns\EnsuresPassportKeys;
 use Tests\integration\Api\Mcp\Concerns\InvokesMcpServer;
+use Tests\integration\Api\Mcp\Concerns\SeedsFireflyData;
 use Tests\integration\TestCase;
 
 /**
- * Covers WIP_MCP §4.2 SearchTransactionsTool. The empty-query rejection guards the
- * required-arg contract; the empty-result happy path verifies the reduced envelope
- * is preserved when no journals match.
+ * Covers WIP_MCP §4.2 SearchTransactionsTool. Empty-query rejection guards the required-arg
+ * contract; the seeded happy path verifies the search hits a matching withdrawal.
  *
  * @internal
  *
@@ -42,20 +43,7 @@ final class SearchTransactionsToolTest extends TestCase
 {
     use EnsuresPassportKeys;
     use InvokesMcpServer;
-
-    /**
-     * @covers \FireflyIII\Mcp\Tools\SearchTransactionsTool
-     */
-    public function testGivenAuthenticatedUserWhenSearchingThenReturnsReducedEnvelope(): void
-    {
-        $user     = $this->createAuthenticatedUser();
-        $response = $this->invokeTool($user, SearchTransactionsTool::class, ['query' => 'lunch']);
-        $response->assertOk();
-
-        $payload = $this->decodeJson($response);
-        self::assertSame([], $payload['data']);
-        self::assertArrayHasKey('pagination', $payload['meta']);
-    }
+    use SeedsFireflyData;
 
     /**
      * @covers \FireflyIII\Mcp\Tools\SearchTransactionsTool
@@ -83,6 +71,25 @@ final class SearchTransactionsToolTest extends TestCase
         $user     = $this->createAuthenticatedUser();
         $response = $this->invokeTool($user, SearchTransactionsTool::class, ['query' => '']);
         $response->assertHasErrors(['Search query is required']);
+    }
+
+    /**
+     * @covers \FireflyIII\Mcp\Tools\SearchTransactionsTool
+     */
+    public function testGivenSeededWithdrawalWhenSearchingByDescriptionThenReturnsMatch(): void
+    {
+        $user        = $this->createAuthenticatedUser();
+        $source      = $this->createAccount($user, AccountTypeEnum::ASSET, 'Checking');
+        $destination = $this->createAccount($user, AccountTypeEnum::EXPENSE, 'Supermarket');
+        $this->createWithdrawal($user, $source, $destination, '42.00', 'groceries');
+
+        $response = $this->invokeTool($user, SearchTransactionsTool::class, ['query' => 'groceries']);
+        $response->assertOk();
+
+        $payload = $this->decodeJson($response);
+        self::assertCount(1, $payload['data']);
+        self::assertSame('groceries', $payload['data'][0]['transactions'][0]['description']);
+        self::assertArrayHasKey('pagination', $payload['meta']);
     }
 
     protected function setUp(): void
