@@ -59,7 +59,12 @@ final class FireflyServer extends Server
         \FireflyIII\Mcp\Tools\ListBillsTool::class,
         \FireflyIII\Mcp\Tools\ListRulesTool::class,
         \FireflyIII\Mcp\Tools\ListPiggyBanksTool::class,
-        \FireflyIII\Mcp\Tools\ListWebhooksTool::class
+        \FireflyIII\Mcp\Tools\ListWebhooksTool::class,
+        // Sprint B — §4.4 aggregates
+        \FireflyIII\Mcp\Tools\SummaryBasicTool::class,
+        \FireflyIII\Mcp\Tools\InsightExpenseTool::class,
+        \FireflyIII\Mcp\Tools\InsightIncomeTool::class,
+        \FireflyIII\Mcp\Tools\ChartDataTool::class
     ];
 
     // Populated by Sprint Teammate D; see WIP_MCP §5.

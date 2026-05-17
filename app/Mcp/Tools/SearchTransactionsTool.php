@@ -42,57 +42,60 @@ use League\Fractal\Resource\Collection as FractalCollection;
 #[IsIdempotent]
 final class SearchTransactionsTool extends AbstractMcpTool
 {
+    public function handle(Request $request): Response
+    {
+        /** @var User $user */
+        $user = auth()->user();
+        [$page, $limit] = $this->pageAndLimit($request);
+
+        $query = (string) $request->get('query', '');
+        $query = $this->maybeAppendDate($query, 'date_after', $this->parseDate($request->get('start')));
+        $query = $this->maybeAppendDate($query, 'date_before', $this->parseDate($request->get('end')));
+
+        if ('' === trim($query)) {
+            return Response::error('Search query is required.');
+        }
+
+        $searcher = app(SearchInterface::class);
+        $searcher->setUser($user);
+        $searcher->parseQuery($query);
+        $searcher->setPage($page);
+        $searcher->setLimit($limit);
+
+        $groups = $searcher->searchTransactions();
+
+        $transformer = app(TransactionGroupTransformer::class);
+        $resource    = new FractalCollection($groups->getCollection(), $transformer, 'transactions');
+        $resource->setPaginator(new IlluminatePaginatorAdapter($groups));
+
+        $document = $this->jsonApiManager()->createData($resource)->toArray();
+
+        return $this->respondJsonApi($document, $request);
+    }
+
     /**
      * @return array<string, mixed>
      */
     public function schema(JsonSchema $schema): array
     {
         return [
-            'query'         => $schema
+            'query'         => $schema->string()->required()->description('Firefly III search query, e.g. "groceries amount_more:50 date_after:2026-01-01".'),
+            'start'         => $schema
                 ->string()
-                ->required()
-                ->description('Firefly III search query, e.g. "groceries amount_more:50 date_after:2026-01-01".'),
-            'start'         => $schema->string()->format('date')->description('Optional inclusive start date; injected as date_after:YYYY-MM-DD if not present in `query`.'),
-            'end'           => $schema->string()->format('date')->description('Optional inclusive end date; injected as date_before:YYYY-MM-DD if not present in `query`.'),
+                ->format('date')
+                ->description('Optional inclusive start date; injected as date_after:YYYY-MM-DD if not present in `query`.'),
+            'end'           => $schema
+                ->string()
+                ->format('date')
+                ->description('Optional inclusive end date; injected as date_before:YYYY-MM-DD if not present in `query`.'),
             'page'          => $schema->integer()->description('Page number (1-based).'),
             'limit'         => $schema->integer()->description("Items per page; defaults to the user's listPageSize preference."),
             'verbose'       => $schema->boolean()->description('Return the raw JSON:API document instead of the reduced shape.'),
-            'include_nulls' => $schema->boolean()->description('Preserve null-valued attributes in the reduced output.'),
+            'include_nulls' => $schema->boolean()->description('Preserve null-valued attributes in the reduced output.')
         ];
     }
 
-    public function handle(Request $request): Response
-    {
-        /** @var User $user */
-        $user        = auth()->user();
-        [$page, $limit] = $this->pageAndLimit($request);
-
-        $query       = (string) $request->get('query', '');
-        $query       = $this->maybeAppendDate($query, 'date_after', $this->parseDate($request->get('start')));
-        $query       = $this->maybeAppendDate($query, 'date_before', $this->parseDate($request->get('end')));
-
-        if ('' === trim($query)) {
-            return Response::error('Search query is required.');
-        }
-
-        $searcher    = app(SearchInterface::class);
-        $searcher->setUser($user);
-        $searcher->parseQuery($query);
-        $searcher->setPage($page);
-        $searcher->setLimit($limit);
-
-        $groups      = $searcher->searchTransactions();
-
-        $transformer = app(TransactionGroupTransformer::class);
-        $resource    = new FractalCollection($groups->getCollection(), $transformer, 'transactions');
-        $resource->setPaginator(new IlluminatePaginatorAdapter($groups));
-
-        $document    = $this->jsonApiManager()->createData($resource)->toArray();
-
-        return $this->respondJsonApi($document, $request);
-    }
-
-    private function maybeAppendDate(string $query, string $operator, ?Carbon $date): string
+    private function maybeAppendDate(string $query, string $operator, null|Carbon $date): string
     {
         if (null === $date) {
             return $query;
@@ -104,7 +107,7 @@ final class SearchTransactionsTool extends AbstractMcpTool
         return rtrim($query) . ' ' . $operator . ':' . $date->format('Y-m-d');
     }
 
-    private function parseDate(mixed $raw): ?Carbon
+    private function parseDate(mixed $raw): null|Carbon
     {
         if (!is_string($raw) || '' === trim($raw)) {
             return null;
