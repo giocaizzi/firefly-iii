@@ -24,6 +24,7 @@ COPY app/Http/Middleware/McpFeatureFlag.php /var/www/html/app/Http/Middleware/Mc
 COPY routes/ai.php /var/www/html/routes/ai.php
 COPY database/migrations/2026_05_17_121535_add_mcp_idempotency_index.php /var/www/html/database/migrations/
 COPY config/firefly.php /var/www/html/config/firefly.php
+COPY config/mcp.php /var/www/html/config/mcp.php
 COPY composer.json /var/www/html/composer.json
 COPY composer.lock /var/www/html/composer.lock
 
