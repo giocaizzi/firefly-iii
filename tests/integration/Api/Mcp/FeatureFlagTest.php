@@ -25,6 +25,7 @@ declare(strict_types=1);
 namespace Tests\integration\Api\Mcp;
 
 use FireflyIII\Support\Facades\FireflyConfig;
+use Tests\integration\Api\Mcp\Concerns\EnsuresPassportKeys;
 use Tests\integration\TestCase;
 
 /**
@@ -38,6 +39,8 @@ use Tests\integration\TestCase;
  */
 final class FeatureFlagTest extends TestCase
 {
+    use EnsuresPassportKeys;
+
     private const string MCP_URL = '/api/v1/mcp';
 
     /**
@@ -74,6 +77,12 @@ final class FeatureFlagTest extends TestCase
         $response->assertOk();
         // initialize response includes the server name & protocol version
         $response->assertJsonPath('result.serverInfo.name', 'Firefly III MCP');
+    }
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->ensurePassportKeysExist();
     }
 
     /**
