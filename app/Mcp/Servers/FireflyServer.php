@@ -52,7 +52,9 @@ final class FireflyServer extends Server
         \FireflyIII\Mcp\Tools\ListCategoriesTool::class,
         \FireflyIII\Mcp\Tools\GetCategoryTool::class,
         \FireflyIII\Mcp\Tools\ListTagsTool::class,
-        \FireflyIII\Mcp\Tools\GetTagTool::class
+        \FireflyIII\Mcp\Tools\GetTagTool::class,
+        // Sprint B — §4.2 search
+        \FireflyIII\Mcp\Tools\SearchTransactionsTool::class
     ];
 
     // Populated by Sprint Teammate D; see WIP_MCP §5.
