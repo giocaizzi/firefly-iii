@@ -25,6 +25,7 @@ declare(strict_types=1);
 namespace Tests\integration\Api\Mcp;
 
 use FireflyIII\Support\Facades\FireflyConfig;
+use Laravel\Passport\Passport;
 use Tests\integration\Api\Mcp\Concerns\EnsuresPassportKeys;
 use Tests\integration\TestCase;
 
@@ -68,7 +69,9 @@ final class FeatureFlagTest extends TestCase
         FireflyConfig::set('allow_mcp', true);
 
         $user = $this->createAuthenticatedUser();
-        $this->actingAs($user, 'api');
+        // mcp:use scope is required since D-039 (OAuth migration). Without it
+        // the route returns 401 from Passport's CheckToken middleware.
+        Passport::actingAs($user, ['mcp:use']);
 
         $response = $this->postJson(self::MCP_URL, $this->initializePayload(), [
             'Accept' => 'application/json, text/event-stream'
