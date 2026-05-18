@@ -38,13 +38,15 @@ Mcp::oauthRoutes();
 // registers it as-is; routes/ai.php is loaded outside the api/ group, so the
 // final URL is exactly /api/v1/mcp).
 //
-// Auth chain (top-down): auth:api (Passport bearer) → CheckToken (scope=mcp:use)
-// → McpFeatureFlag (allow_mcp config kill switch). The middleware order matters
-// only for the response code on failure — 401 vs 403 vs 404 — and matches the
-// expectations of the MCP discovery flow (401 + WWW-Authenticate kicks the
-// client into OAuth).
+// Middleware order (top-down):
+//   1. McpFeatureFlag — if `allow_mcp` is off, return 404. The route simply
+//      doesn't exist for that instance, so clients shouldn't try to OAuth in.
+//   2. auth:api — Passport bearer auth; missing/invalid token returns 401 +
+//      WWW-Authenticate (set automatically by laravel/mcp's middleware), which
+//      is what kicks MCP clients into the OAuth discovery flow.
+//   3. CheckToken (scope=mcp:use) — token is valid but lacks the MCP scope.
 Mcp::web('/api/v1/mcp', FireflyServer::class)->middleware([
+    McpFeatureFlag::class,
     'auth:api',
     CheckToken::using('mcp:use'),
-    McpFeatureFlag::class,
 ]);

@@ -25,13 +25,15 @@ declare(strict_types=1);
 namespace Tests\integration\Api\Mcp;
 
 use FireflyIII\Support\Facades\FireflyConfig;
+use Laravel\Passport\Passport;
 use Tests\integration\Api\Mcp\Concerns\EnsuresPassportKeys;
 use Tests\integration\TestCase;
 
 /**
  * Class AuthGuardTest
  *
- * Verifies that the MCP route requires Passport authentication.
+ * Verifies that the MCP route requires Passport authentication plus the
+ * `mcp:use` scope.
  *
  * @internal
  *
@@ -46,12 +48,12 @@ final class AuthGuardTest extends TestCase
     /**
      * @covers \FireflyIII\Mcp\Servers\FireflyServer
      */
-    public function testGivenAuthenticatedUserWhenInitializingThenReturnsOk(): void
+    public function testGivenAuthenticatedUserWithMcpScopeWhenInitializingThenReturnsOk(): void
     {
         FireflyConfig::set('allow_mcp', true);
 
         $user = $this->createAuthenticatedUser();
-        $this->actingAs($user, 'api');
+        Passport::actingAs($user, ['mcp:use']);
 
         $response = $this->postJson(self::MCP_URL, $this->initializePayload(), [
             'Accept' => 'application/json, text/event-stream'
