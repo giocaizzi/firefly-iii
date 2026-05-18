@@ -8,8 +8,8 @@
     "email": "giocaizzi@gmail.com",
     "url": "https://github.com/giocaizzi"
   },
-  "homepage": "https://github.com/giocaizzi/firefly-iii/tree/feat/mcp-integration/firefly-iii",
-  "repository": "https://github.com/giocaizzi/firefly-iii",
+  "homepage": "https://github.com/firefly-iii/firefly-iii",
+  "repository": "https://github.com/firefly-iii/firefly-iii",
   "license": "MIT",
   "keywords": [
     "firefly-iii",
