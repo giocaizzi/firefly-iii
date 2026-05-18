@@ -21,7 +21,7 @@ An MCP-aware AI assistant capable of loading plugin bundles (skills, commands, a
 
 ## Install
 
-The bundle uses the open Claude Code plugin marketplace layout (`.claude-plugin/marketplace.json` + `plugins/firefly-iii/`). Install commands depend on your assistant client. Example (a client supporting `/plugin marketplace`):
+The bundle uses the open Claude Code plugin marketplace layout (`.claude-plugin/marketplace.json` + `firefly-iii/`). Install commands depend on your assistant client. Example (a client supporting `/plugin marketplace`):
 
 ```
 /plugin marketplace add giocaizzi/firefly-iii
