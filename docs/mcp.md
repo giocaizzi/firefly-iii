@@ -49,12 +49,12 @@ All tools return JSON envelopes reduced from the canonical JSON:API shape (`id` 
 
 ### Write
 
-All write tools accept an optional `idempotency_key: string` (printable ASCII, ≤128 chars). When supplied, a repeat call with the same key returns the original transaction id without creating a duplicate, scoped to the calling user. Currency is inherited from the source asset account — no `currency_code` argument.
+Every create-style write tool (`create-withdrawal`, `create-deposit`, `create-transfer`, plus per-item on `bulk-create-transactions`) accepts an optional `idempotency_key: string` (printable ASCII, ≤128 chars). When supplied, a repeat call with the same key returns the original transaction id without creating a duplicate, scoped to the calling user. `update-transaction` does *not* accept a key — it is naturally idempotent via address-by-id (re-applying the same partial update lands the same end state), which is what the `IsIdempotent` annotation communicates to clients. `delete-transaction` is intentionally non-idempotent: a second call on the same id returns not-found. Currency is inherited from the source asset account — no `currency_code` argument.
 
 - `create-withdrawal` — source must be asset, destination must be expense. Validation reuses `StoreTransactionRequest::rules()`.
 - `create-deposit` — source must be revenue, destination must be asset.
 - `create-transfer` — both source and destination must be asset. Cross-currency transfers are rejected with a clear error (see *Known limitations*).
-- `update-transaction` — partial update by transaction `id`. Marked `IsDestructive` + `IsIdempotent`.
+- `update-transaction` — partial update by transaction `id`. Marked `IsDestructive` + `IsIdempotent`. Naturally idempotent via address-by-id, no `idempotency_key` argument.
 - `delete-transaction` — by transaction `id`. Marked `IsDestructive`; a second call on the same id returns a not-found error (not idempotent).
 - `bulk-create-transactions` — up to 100 items per call, all-or-nothing inside a DB transaction. Per-item idempotency keys supported.
 
