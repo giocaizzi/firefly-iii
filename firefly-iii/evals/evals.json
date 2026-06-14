@@ -1,0 +1,35 @@
+{
+  "skill_name": "firefly-iii",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "how am i doing this month financially? quick summary please",
+      "expected_output": "Skill should call summary-basic with no args (current-month default), render a compact digest (income / expense / balance / budgets / bills / net worth). No reaching for list-transactions to sum manually.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "did i overspend on groceries last month? compare with the month before too",
+      "expected_output": "Skill should read firefly-iii://user/categories once, then run TWO insight-expense calls in parallel for the two periods (last month + month before), then diff the groceries row. Should NOT iterate through list-transactions.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "log a 12.50 EUR latte at the corner cafe on my Amex from this morning",
+      "expected_output": "Skill should echo the full plan (withdrawal, source=Amex, dest='Corner Cafe' expense account auto-created, amount=12.50, date=today, description='Latte'), wait for confirmation, then call create-withdrawal with a deterministic idempotency_key. Should NOT call without confirmation.",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "find that amazon refund from sometime last week — i think it was around 30 bucks",
+      "expected_output": "Skill should call search-transactions with query='amazon' (or 'amazon refund' / 'amazon amount_gt:20 amount_lt:50') and a 7-day window. Should NOT call list-transactions and filter client-side.",
+      "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "transfer 500 from my checking to savings",
+      "expected_output": "Skill should ask for date (or default to today + confirm), confirm both accounts exist and share a currency, echo the plan, wait for confirmation, then call create-transfer. Should explicitly check or surface the same-currency constraint.",
+      "files": []
+    }
+  ]
+}

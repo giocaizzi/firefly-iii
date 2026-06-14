@@ -1,0 +1,20 @@
+{
+  "name": "firefly-iii",
+  "owner": {
+    "name": "firefly-iii",
+    "url": "https://github.com/firefly-iii"
+  },
+  "metadata": {
+    "description": "Plugin marketplace for Firefly III.",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "firefly-iii",
+      "source": "./firefly-iii",
+      "description": "Operate a Firefly III personal-finance instance from an AI assistant: read accounts/transactions/budgets, run insight aggregates, create or update transactions with idempotency safety, review categorization in batch — all via the built-in MCP endpoint plus four slash commands and a focused subagent.",
+      "version": "0.1.1",
+      "keywords": ["firefly-iii", "finance", "budgeting", "mcp", "personal-finance"]
+    }
+  ]
+}
