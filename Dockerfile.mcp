@@ -1,0 +1,52 @@
+# Overlay Dockerfile — adds the MCP feature on top of a pinned upstream
+# fireflyiii/core release image (FIREFLY_IMAGE_TAG, e.g. version-6.6.3).
+#
+# Strategy: pull the pinned upstream release image (which already has nginx + PHP-FPM +
+# vendor/ + built frontend assets baked in via the Azure DevOps MainImage pipeline), then
+# patch
+# /var/www/html with the source files we changed on feat/mcp-integration. Run
+# `composer install` to fetch laravel/mcp and its dependencies into vendor/. Upstream's
+# entrypoint.sh runs `composer dump-autoload` + `php artisan package:discover` +
+# `config:cache` + `event:cache` at container startup, so the MCP service provider
+# will register without further build-time work.
+
+# Composer binary stage — small image used only to copy /usr/bin/composer.
+FROM composer:2 AS composer
+
+# Base image tag, pinned to the upstream release this overlay was built against. The
+# upstream-sync workflow passes the matching release (e.g. version-6.6.3) so the base
+# image and the overlaid source stay in lockstep. Defaults to latest for local builds.
+ARG FIREFLY_IMAGE_TAG=latest
+FROM fireflyiii/core:${FIREFLY_IMAGE_TAG}
+
+# Upstream image runs as www-data. Switch to root for COPY + composer install.
+USER root
+
+COPY --from=composer /usr/bin/composer /usr/local/bin/composer
+
+# Overlay only the source files that changed between upstream main and feat/mcp-integration.
+COPY app/Mcp /var/www/html/app/Mcp
+COPY app/Http/Middleware/McpFeatureFlag.php /var/www/html/app/Http/Middleware/McpFeatureFlag.php
+COPY routes/ai.php /var/www/html/routes/ai.php
+COPY database/migrations/2026_05_17_121535_add_mcp_idempotency_index.php /var/www/html/database/migrations/
+COPY config/firefly.php /var/www/html/config/firefly.php
+COPY composer.json /var/www/html/composer.json
+COPY composer.lock /var/www/html/composer.lock
+
+WORKDIR /var/www/html
+
+# Install only the new MCP runtime dependencies into the existing vendor/ tree.
+# --no-dev keeps the production posture; package:discover runs from upstream's
+# entrypoint.sh at container start, so --no-scripts here avoids running artisan
+# before the application is configured.
+RUN chown -R www-data:www-data /var/www/html/composer.json /var/www/html/composer.lock \
+                                /var/www/html/app /var/www/html/routes /var/www/html/database \
+                                /var/www/html/config /var/www/html/vendor \
+ && su www-data -s /bin/bash -c "composer install --no-dev --optimize-autoloader --no-scripts --no-interaction"
+
+# Drop privileges before the image is run.
+USER www-data
+
+LABEL org.opencontainers.image.title="Firefly III (giocaizzi/firefly-iii fork with MCP endpoint)"
+LABEL org.opencontainers.image.source="https://github.com/giocaizzi/firefly-iii"
+LABEL org.opencontainers.image.description="pinned fireflyiii/core release + MCP endpoint at /api/v1/mcp (allow_mcp=true)"

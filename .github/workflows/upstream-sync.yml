@@ -1,0 +1,222 @@
+name: 'Fork - Tested upstream sync'
+
+# Keeps this fork's MCP feature branch current with the latest *stable upstream release*,
+# fully automatically: resolves the newest Firefly III release tag, rebases
+# feat/mcp-integration onto it, runs the MCP test suite, and — only when it passes —
+# force-pushes the rebased history back to feat/mcp-integration. The only manual
+# intervention is resolving a rebase conflict (or fixing a genuine test failure).
+#
+# Why the release tag and not upstream/main: `main` runs ahead of the last release with
+# untagged maintenance commits (dependabot bumps etc.), so tracking it would ship an
+# unreleased, mislabelled build. Pinning to the release tag gives a reproducible
+# "MCP on exactly version X.Y.Z" — and lets the Docker overlay pin its base image to the
+# matching fireflyiii/core:version-X.Y.Z so source and base stay in lockstep.
+#
+# Outcomes:
+#   - already on latest release -> job succeeds, does nothing
+#   - rebase conflict           -> job FAILS (GitHub notifies); resolve locally
+#   - tests red                 -> job FAILS (GitHub notifies); the release broke MCP
+#   - tests green               -> force-pushes feat/mcp-integration, silently
+#
+# On a successful promote (or any manual dispatch) a second job builds the Dockerfile.mcp
+# overlay (fireflyiii/core:version-X.Y.Z + MCP) and pushes it to GHCR tagged :latest,
+# :X.Y.Z-mcp and :sha-<short>, so image-watching services pull the new build automatically.
+
+on:
+  schedule:
+    # Tuesday 06:00 UTC — after upstream's typical Monday release cadence.
+    - cron: '0 6 * * 2'
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Upstream release tag to target (blank = latest stable release)'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+concurrency:
+  group: upstream-sync
+  cancel-in-progress: false
+
+env:
+  FEATURE_BRANCH: feat/mcp-integration
+  UPSTREAM_REPO: firefly-iii/firefly-iii
+  # GHCR target. Resolves to ghcr.io/giocaizzi/firefly-iii.
+  IMAGE: ghcr.io/${{ github.repository }}
+
+jobs:
+  rebase-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      changed: ${{ steps.gate.outputs.changed }}
+      version: ${{ steps.gate.outputs.version }}
+      tag: ${{ steps.gate.outputs.tag }}
+    steps:
+      - name: Checkout feature branch (full history)
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ env.FEATURE_BRANCH }}
+          fetch-depth: 0
+          # A PAT with the `workflow` scope, NOT the default GITHUB_TOKEN: rebasing onto a new
+          # release pulls in upstream's own changes under .github/workflows/, and GitHub
+          # refuses to let the default token push workflow-file changes. The token persists
+          # via checkout so the promote `git push` below uses it. Create a fine-grained PAT
+          # (Contents: RW + Workflows: RW on this repo) and save it as the SYNC_PAT secret.
+          token: ${{ secrets.SYNC_PAT }}
+
+      - name: Configure git
+        run: |
+          git config user.name 'fork-sync[bot]'
+          git config user.email 'fork-sync@users.noreply.github.com'
+
+      - name: Record current feature SHA
+        id: orig
+        # Lease target for the final push: we only overwrite feat/mcp-integration if the
+        # remote is still exactly where we started, so a human push mid-run is never clobbered.
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve target release
+        id: rel
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag='${{ github.event.inputs.release_tag }}'
+          if [ -z "$tag" ]; then
+            # releases/latest excludes prereleases and develop snapshots — the stable line.
+            tag=$(gh api "repos/${UPSTREAM_REPO}/releases/latest" --jq '.tag_name')
+          fi
+          echo "Target upstream release: ${tag}"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Fetch release tag
+        run: |
+          git remote add upstream "https://github.com/${UPSTREAM_REPO}.git" 2>/dev/null || true
+          git fetch --no-tags upstream \
+            "refs/tags/${{ steps.rel.outputs.tag }}:refs/tags/${{ steps.rel.outputs.tag }}"
+
+      - name: Gate — already on this release?
+        id: gate
+        run: |
+          tag="${{ steps.rel.outputs.tag }}"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "version=${{ steps.rel.outputs.version }}" >> "$GITHUB_OUTPUT"
+          if git merge-base --is-ancestor "refs/tags/${tag}" HEAD; then
+            echo "changed=0" >> "$GITHUB_OUTPUT"
+            echo "✅ Already based on ${tag}; nothing to do." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "changed=1" >> "$GITHUB_OUTPUT"
+            echo "⤴️ New release ${tag} — rebasing the MCP feature onto it." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Rebase onto release tag
+        if: steps.gate.outputs.changed != '0'
+        run: |
+          # Replays the MCP commit(s) onto the new release. Nothing is pushed until the tests
+          # pass, so a failed rebase or red suite leaves the remote branch untouched.
+          if ! git rebase "refs/tags/${{ steps.rel.outputs.tag }}"; then
+            {
+              echo "## ❌ Rebase conflict onto ${{ steps.rel.outputs.tag }}"
+              echo
+              echo "Conflicting paths:"
+              echo '```'
+              git diff --name-only --diff-filter=U
+              echo '```'
+              echo "Resolve locally — by design conflicts should only ever be in composer.json, composer.lock or config/firefly.php."
+            } >> "$GITHUB_STEP_SUMMARY"
+            git rebase --abort
+            exit 1
+          fi
+
+      - name: Setup PHP 8.5
+        if: steps.gate.outputs.changed != '0'
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          extensions: bcmath, curl, fileinfo, iconv, intl, mbstring, pdo_sqlite, sqlite3, simplexml, xml, xmlwriter, zip
+          coverage: none
+
+      - name: Install dependencies
+        if: steps.gate.outputs.changed != '0'
+        run: composer install --no-interaction --no-progress --prefer-dist --no-scripts
+
+      - name: Bootstrap test environment
+        if: steps.gate.outputs.changed != '0'
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+
+      - name: Run MCP test suite (the operational gate)
+        if: steps.gate.outputs.changed != '0'
+        # Scoped to the MCP suite on purpose: it is self-bootstrapping (provisions its own
+        # Passport keys + fixtures) and exercises every tool end-to-end through the real HTTP
+        # transport, so it reliably catches a release that breaks MCP. Widen to
+        # `composer integration-test` here if you want the whole Firefly suite to gate too.
+        run: php vendor/bin/phpunit -c phpunit.xml --no-coverage tests/integration/Api/Mcp
+
+      - name: Promote to feature branch (auto)
+        if: steps.gate.outputs.changed != '0'
+        run: |
+          # Fully automatic: the suite passed, so publish the rebased history to the feature
+          # branch. --force-with-lease pinned to the SHA we started from means the push fails
+          # safely (rather than clobbering) if anyone pushed to the branch during the run.
+          git push --force-with-lease="${FEATURE_BRANCH}:${{ steps.orig.outputs.sha }}" origin "HEAD:${FEATURE_BRANCH}"
+
+  build-and-push:
+    needs: rebase-and-test
+    # Build when the sync actually promoted, or on any manual dispatch (force a rebuild even
+    # when already current). A failed or conflicted rebase fails job 1, so `needs` is unmet
+    # and no image is built.
+    if: needs.rebase-and-test.outputs.changed != '0' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout promoted feature branch
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ env.FEATURE_BRANCH }}
+          fetch-depth: 1
+
+      - name: Image metadata
+        id: meta
+        run: |
+          echo "short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+          version='${{ needs.rebase-and-test.outputs.version }}'
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "Base fireflyiii/core:version-${version} -> ${IMAGE}:latest, ${IMAGE}:${version}-mcp"
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push MCP overlay image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.mcp
+          # Pin the base to the same release the source was rebased onto, so the overlay and
+          # the upstream image are byte-consistent. fireflyiii/core is multi-arch; match it.
+          build-args: |
+            FIREFLY_IMAGE_TAG=version-${{ steps.meta.outputs.version }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          provenance: false
+          tags: |
+            ${{ env.IMAGE }}:latest
+            ${{ env.IMAGE }}:${{ steps.meta.outputs.version }}-mcp
+            ${{ env.IMAGE }}:sha-${{ steps.meta.outputs.short }}
