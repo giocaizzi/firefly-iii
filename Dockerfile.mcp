@@ -10,13 +10,16 @@
 # `config:cache` + `event:cache` at container startup, so the MCP service provider
 # will register without further build-time work.
 
-# Composer binary stage — small image used only to copy /usr/bin/composer.
-FROM composer:2 AS composer
-
 # Base image tag, pinned to the upstream release this overlay was built against. The
 # upstream-sync workflow passes the matching release (e.g. version-6.6.3) so the base
 # image and the overlaid source stay in lockstep. Defaults to latest for local builds.
+# Declared before the first FROM so it is in scope for the fireflyiii/core FROM below —
+# an ARG declared inside a stage is not visible to later FROM instructions.
 ARG FIREFLY_IMAGE_TAG=latest
+
+# Composer binary stage — small image used only to copy /usr/bin/composer.
+FROM composer:2 AS composer
+
 FROM fireflyiii/core:${FIREFLY_IMAGE_TAG}
 
 # Upstream image runs as www-data. Switch to root for COPY + composer install.
