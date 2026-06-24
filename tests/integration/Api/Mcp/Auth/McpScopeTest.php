@@ -76,6 +76,11 @@ final class McpScopeTest extends TestCase
      */
     public function testGivenTokenWithoutMcpUseScopeThenRequestIsRejected(): void
     {
+        // TEMP: the mcp:use scope gate (CheckToken) is commented out in routes/ai.php
+        // so existing scope-less PATs keep working. Re-enable the gate there and drop
+        // this skip together.
+        self::markTestSkipped('mcp:use scope gate disabled in routes/ai.php; re-enable together.');
+
         FireflyConfig::set('allow_mcp', true);
 
         $user = $this->createAuthenticatedUser();

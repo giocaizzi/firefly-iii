@@ -25,7 +25,8 @@ declare(strict_types=1);
 use FireflyIII\Http\Middleware\McpFeatureFlag;
 use FireflyIII\Mcp\Servers\FireflyServer;
 use Laravel\Mcp\Facades\Mcp;
-use Laravel\Passport\Http\Middleware\CheckToken;
+// TEMP: re-enable together with the CheckToken middleware below.
+// use Laravel\Passport\Http\Middleware\CheckToken;
 
 // MCP-spec OAuth discovery (WIP_MCP.md D-039). Registers:
 //   GET /.well-known/oauth-protected-resource             (RFC 9728)
@@ -45,8 +46,15 @@ Mcp::oauthRoutes();
 //      WWW-Authenticate (set automatically by laravel/mcp's middleware), which
 //      is what kicks MCP clients into the OAuth discovery flow.
 //   3. CheckToken (scope=mcp:use) — token is valid but lacks the MCP scope.
+//
+// TEMP: the mcp:use scope gate is disabled for now. Firefly mints Personal
+// Access Tokens with empty scopes, and Token::can() returns false on empty
+// scopes, so CheckToken would 401 every existing PAT. Until PATs carry the
+// scope (or OAuth becomes the only client path), any valid bearer is accepted.
+// Re-enable by uncommenting the CheckToken import + line below and dropping the
+// skip in McpScopeTest::testGivenTokenWithoutMcpUseScopeThenRequestIsRejected.
 Mcp::web('/api/v1/mcp', FireflyServer::class)->middleware([
     McpFeatureFlag::class,
     'auth:api',
-    CheckToken::using('mcp:use'),
+    // CheckToken::using('mcp:use'),
 ]);
