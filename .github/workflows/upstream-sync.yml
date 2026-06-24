@@ -132,7 +132,7 @@ jobs:
           fi
 
       - name: Setup PHP 8.5
-        if: steps.gate.outputs.changed != '0'
+        if: steps.gate.outputs.changed != '0' || github.event_name == 'workflow_dispatch'
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.5'
@@ -140,21 +140,25 @@ jobs:
           coverage: none
 
       - name: Install dependencies
-        if: steps.gate.outputs.changed != '0'
+        if: steps.gate.outputs.changed != '0' || github.event_name == 'workflow_dispatch'
         run: composer install --no-interaction --no-progress --prefer-dist --no-scripts
 
       - name: Bootstrap test environment
-        if: steps.gate.outputs.changed != '0'
+        if: steps.gate.outputs.changed != '0' || github.event_name == 'workflow_dispatch'
         run: |
           cp .env.example .env
           php artisan key:generate
 
       - name: Run MCP test suite (the operational gate)
-        if: steps.gate.outputs.changed != '0'
+        if: steps.gate.outputs.changed != '0' || github.event_name == 'workflow_dispatch'
         # Scoped to the MCP suite on purpose: it is self-bootstrapping (provisions its own
         # Passport keys + fixtures) and exercises every tool end-to-end through the real HTTP
         # transport, so it reliably catches a release that breaks MCP. Widen to
         # `composer integration-test` here if you want the whole Firefly suite to gate too.
+        #
+        # Runs on every upstream rebase AND on every manual dispatch — so a hand-triggered
+        # build of the feature branch is test-gated too, even when no upstream release moved
+        # (changed=0). A red suite fails this job, leaving build-and-push (needs:) unmet.
         run: php vendor/bin/phpunit -c phpunit.xml --no-coverage tests/integration/Api/Mcp
 
       - name: Promote to feature branch (auto)
