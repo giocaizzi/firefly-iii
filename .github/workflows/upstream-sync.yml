@@ -216,7 +216,9 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           provenance: false
+          # :mcp is the rolling tag — always points at the newest build for deploys to track.
           tags: |
             ${{ env.IMAGE }}:latest
+            ${{ env.IMAGE }}:mcp
             ${{ env.IMAGE }}:${{ steps.meta.outputs.version }}-mcp
             ${{ env.IMAGE }}:sha-${{ steps.meta.outputs.short }}
