@@ -34,9 +34,12 @@ use FireflyIII\Models\Bill;
 use FireflyIII\Models\Budget;
 use FireflyIII\Models\Category;
 use FireflyIII\Models\PiggyBank;
+use FireflyIII\Models\Rule;
+use FireflyIII\Models\RuleGroup;
 use FireflyIII\Models\TransactionCurrency;
 use FireflyIII\Models\TransactionGroup;
 use FireflyIII\Models\Webhook;
+use FireflyIII\Repositories\Rule\RuleRepositoryInterface;
 use FireflyIII\Repositories\TransactionGroup\TransactionGroupRepositoryInterface;
 use FireflyIII\User;
 
@@ -107,6 +110,47 @@ trait SeedsFireflyData
             'user_id'       => $user->id,
             'user_group_id' => $user->user_group_id,
             'name'          => $name
+        ]);
+    }
+
+    protected function createRuleGroup(User $user, string $title = 'Default group'): RuleGroup
+    {
+        return RuleGroup::create([
+            'user_id'         => $user->id,
+            'user_group_id'   => $user->user_group_id,
+            'title'           => $title,
+            'description'     => '',
+            'order'           => 1,
+            'active'          => true,
+            'stop_processing' => false
+        ]);
+    }
+
+    /**
+     * Persist a complete rule (with a user_action trigger plus one trigger and one action)
+     * through the canonical RuleRepository so triggers/actions match the shape the
+     * transformer and update path expect.
+     */
+    protected function createRule(User $user, string $title = 'Test rule'): Rule
+    {
+        $group      = $this->createRuleGroup($user);
+        $repository = app(RuleRepositoryInterface::class);
+        $repository->setUser($user);
+
+        return $repository->store([
+            'rule_group_id'   => $group->id,
+            'title'           => $title,
+            'description'     => 'seeded rule',
+            'trigger'         => 'store-journal',
+            'strict'          => true,
+            'active'          => true,
+            'stop_processing' => false,
+            'triggers'        => [
+                ['type' => 'description_contains', 'value' => 'coffee', 'active' => true, 'stop_processing' => false]
+            ],
+            'actions'         => [
+                ['type' => 'set_category', 'value' => 'Coffee', 'active' => true, 'stop_processing' => false]
+            ]
         ]);
     }
 

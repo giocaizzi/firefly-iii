@@ -52,11 +52,16 @@ final class ServerManifestTest extends TestCase
     private const array EXPECTED_TOOLS = [
         'bulk-create-transactions-tool',
         'chart-data-tool',
+        'convert-transaction-tool',
         'create-deposit-tool',
         'create-transfer-tool',
         'create-withdrawal-tool',
+        'delete-account-tool',
+        'delete-category-tool',
+        'delete-rule-tool',
         'delete-transaction-tool',
         'get-account-tool',
+        'get-audit-log-tool',
         'get-budget-tool',
         'get-category-tool',
         'get-tag-tool',
@@ -74,6 +79,7 @@ final class ServerManifestTest extends TestCase
         'list-webhooks-tool',
         'search-transactions-tool',
         'summary-basic-tool',
+        'update-rule-tool',
         'update-transaction-tool',
     ];
 
