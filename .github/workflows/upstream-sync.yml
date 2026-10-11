@@ -112,25 +112,6 @@ jobs:
             echo "⤴️ New release ${tag} — rebasing the MCP feature onto it." >> "$GITHUB_STEP_SUMMARY"
           fi
 
-      - name: Rebase onto release tag
-        if: steps.gate.outputs.changed != '0'
-        run: |
-          # Replays the MCP commit(s) onto the new release. Nothing is pushed until the tests
-          # pass, so a failed rebase or red suite leaves the remote branch untouched.
-          if ! git rebase "refs/tags/${{ steps.rel.outputs.tag }}"; then
-            {
-              echo "## ❌ Rebase conflict onto ${{ steps.rel.outputs.tag }}"
-              echo
-              echo "Conflicting paths:"
-              echo '```'
-              git diff --name-only --diff-filter=U
-              echo '```'
-              echo "Resolve locally — by design conflicts should only ever be in composer.json, composer.lock or config/firefly.php."
-            } >> "$GITHUB_STEP_SUMMARY"
-            git rebase --abort
-            exit 1
-          fi
-
       - name: Setup PHP 8.5
         if: steps.gate.outputs.changed != '0' || github.event_name == 'workflow_dispatch'
         uses: shivammathur/setup-php@v2
@@ -138,6 +119,36 @@ jobs:
           php-version: '8.5'
           extensions: bcmath, curl, fileinfo, iconv, intl, mbstring, pdo_sqlite, sqlite3, simplexml, xml, xmlwriter, zip
           coverage: none
+
+      - name: Rebase onto release tag
+        if: steps.gate.outputs.changed != '0'
+        run: |
+          # Replays the MCP commit(s) onto the new release. Nothing is pushed until the tests
+          # pass, so a failed rebase or red suite leaves the remote branch untouched.
+          #
+          # composer.lock can't be text-merged and upstream rewrites it on nearly every
+          # release, so a lock-only conflict is resolved by taking the base's lock ("ours"
+          # during a rebase) and re-resolving just laravel/mcp on top of it. Runs after PHP
+          # setup because it needs composer.
+          git rebase "refs/tags/${{ steps.rel.outputs.tag }}" || while :; do
+            if [ "$(git diff --name-only --diff-filter=U)" != "composer.lock" ]; then
+              {
+                echo "## ❌ Rebase conflict onto ${{ steps.rel.outputs.tag }}"
+                echo
+                echo "Conflicting paths:"
+                echo '```'
+                git diff --name-only --diff-filter=U
+                echo '```'
+                echo "Resolve locally — by design conflicts should only ever be in composer.json or config/firefly.php."
+              } >> "$GITHUB_STEP_SUMMARY"
+              git rebase --abort
+              exit 1
+            fi
+            git checkout --ours composer.lock
+            composer update laravel/mcp --no-install --no-scripts --no-interaction
+            git add composer.lock
+            GIT_EDITOR=true git rebase --continue && break
+          done
 
       - name: Install dependencies
         if: steps.gate.outputs.changed != '0' || github.event_name == 'workflow_dispatch'
