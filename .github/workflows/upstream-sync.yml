@@ -47,6 +47,18 @@ env:
   IMAGE: ghcr.io/${{ github.repository }}
 
 jobs:
+  keepalive:
+    # GitHub disables scheduled workflows after 60 days without repo activity, and a no-op
+    # sync pushes nothing. Re-enabling via the API resets that timer. Own job so it runs
+    # even when the sync fails, and so only it gets actions:write.
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/upstream-sync.yml/enable"
+
   rebase-and-test:
     runs-on: ubuntu-latest
     timeout-minutes: 30
