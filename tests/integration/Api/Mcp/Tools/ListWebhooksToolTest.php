@@ -25,7 +25,7 @@ declare(strict_types=1);
 namespace Tests\integration\Api\Mcp\Tools;
 
 use FireflyIII\Mcp\Tools\ListWebhooksTool;
-use FireflyIII\Support\Facades\FireflyConfig;
+use FireflyIII\Support\Facades\AppConfiguration;
 use Tests\integration\Api\Mcp\Concerns\EnsuresPassportKeys;
 use Tests\integration\Api\Mcp\Concerns\InvokesMcpServer;
 use Tests\integration\Api\Mcp\Concerns\SeedsFireflyData;
@@ -50,7 +50,7 @@ final class ListWebhooksToolTest extends TestCase
      */
     public function testGivenSeededWebhookWhenListingThenReturnsWebhookInEnvelope(): void
     {
-        FireflyConfig::set('allow_webhooks', true);
+        AppConfiguration::set('allow_webhooks', true);
 
         $user    = $this->createAuthenticatedUser();
         $webhook = $this->createWebhook($user, 'Test webhook');
@@ -70,7 +70,7 @@ final class ListWebhooksToolTest extends TestCase
      */
     public function testGivenWebhooksDisabledWhenListingThenRespondsWithError(): void
     {
-        FireflyConfig::set('allow_webhooks', false);
+        AppConfiguration::set('allow_webhooks', false);
 
         $user     = $this->createAuthenticatedUser();
         $response = $this->invokeTool($user, ListWebhooksTool::class, []);

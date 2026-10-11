@@ -24,7 +24,7 @@ declare(strict_types=1);
 
 namespace Tests\integration\Api\Mcp;
 
-use FireflyIII\Support\Facades\FireflyConfig;
+use FireflyIII\Support\Facades\AppConfiguration;
 use Laravel\Passport\Passport;
 use Tests\integration\Api\Mcp\Concerns\EnsuresPassportKeys;
 use Tests\integration\TestCase;
@@ -49,7 +49,7 @@ final class FeatureFlagTest extends TestCase
      */
     public function testGivenFeatureFlagDisabledWhenInitializingThenReturns404(): void
     {
-        FireflyConfig::set('allow_mcp', false);
+        AppConfiguration::set('allow_mcp', false);
 
         $user = $this->createAuthenticatedUser();
         $this->actingAs($user, 'api');
@@ -66,7 +66,7 @@ final class FeatureFlagTest extends TestCase
      */
     public function testGivenFeatureFlagEnabledWhenInitializingThenReturnsSuccessfulHandshake(): void
     {
-        FireflyConfig::set('allow_mcp', true);
+        AppConfiguration::set('allow_mcp', true);
 
         $user = $this->createAuthenticatedUser();
         // mcp:use scope is required since D-039 (OAuth migration). Without it

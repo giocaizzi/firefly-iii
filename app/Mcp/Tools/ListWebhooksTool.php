@@ -25,7 +25,7 @@ declare(strict_types=1);
 namespace FireflyIII\Mcp\Tools;
 
 use FireflyIII\Repositories\Webhook\WebhookRepositoryInterface;
-use FireflyIII\Support\Facades\FireflyConfig;
+use FireflyIII\Support\Facades\AppConfiguration;
 use FireflyIII\Support\JsonApi\Enrichments\WebhookEnrichment;
 use FireflyIII\Transformers\WebhookTransformer;
 use FireflyIII\User;
@@ -46,7 +46,7 @@ final class ListWebhooksTool extends AbstractMcpTool
 {
     public function handle(Request $request): Response
     {
-        if (false === FireflyConfig::get('allow_webhooks', config('firefly.allow_webhooks'))->data) {
+        if (false === AppConfiguration::get('allow_webhooks', config('firefly.allow_webhooks'))->data) {
             return Response::error('Webhooks are not enabled on this Firefly III instance.');
         }
 

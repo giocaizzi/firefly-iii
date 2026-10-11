@@ -24,7 +24,7 @@ declare(strict_types=1);
 
 namespace Tests\integration\Api\Mcp\Concerns;
 
-use FireflyIII\Support\Facades\FireflyConfig;
+use FireflyIII\Support\Facades\AppConfiguration;
 use Illuminate\Testing\TestResponse;
 use PHPUnit\Framework\Assert;
 
@@ -42,7 +42,7 @@ trait CallsMcpEndpoint
      */
     protected function enableMcp(): void
     {
-        FireflyConfig::set('allow_mcp', true);
+        AppConfiguration::set('allow_mcp', true);
     }
 
     /**

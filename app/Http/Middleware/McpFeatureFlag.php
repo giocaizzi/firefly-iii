@@ -25,7 +25,7 @@ declare(strict_types=1);
 namespace FireflyIII\Http\Middleware;
 
 use Closure;
-use FireflyIII\Support\Facades\FireflyConfig;
+use FireflyIII\Support\Facades\AppConfiguration;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
@@ -39,7 +39,7 @@ final class McpFeatureFlag
 {
     public function handle(Request $request, Closure $next): mixed
     {
-        if (false === FireflyConfig::get('allow_mcp', config('firefly.allow_mcp'))->data) {
+        if (false === AppConfiguration::get('allow_mcp', config('firefly.allow_mcp'))->data) {
             throw new NotFoundHttpException('MCP endpoint is not enabled.');
         }
 

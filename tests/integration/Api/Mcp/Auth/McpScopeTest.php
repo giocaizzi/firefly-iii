@@ -24,7 +24,7 @@ declare(strict_types=1);
 
 namespace Tests\integration\Api\Mcp\Auth;
 
-use FireflyIII\Support\Facades\FireflyConfig;
+use FireflyIII\Support\Facades\AppConfiguration;
 use Laravel\Passport\Passport;
 use Tests\integration\Api\Mcp\Concerns\EnsuresPassportKeys;
 use Tests\integration\TestCase;
@@ -53,7 +53,7 @@ final class McpScopeTest extends TestCase
      */
     public function testGivenNoAuthorizationHeaderThenReturns401WithWwwAuthenticateChallenge(): void
     {
-        FireflyConfig::set('allow_mcp', true);
+        AppConfiguration::set('allow_mcp', true);
 
         $response = $this->postJson(self::MCP_URL, $this->initializePayload(), [
             'Accept' => 'application/json, text/event-stream',
@@ -81,7 +81,7 @@ final class McpScopeTest extends TestCase
         // this skip together.
         self::markTestSkipped('mcp:use scope gate disabled in routes/ai.php; re-enable together.');
 
-        FireflyConfig::set('allow_mcp', true);
+        AppConfiguration::set('allow_mcp', true);
 
         $user = $this->createAuthenticatedUser();
         // Mint a Passport access token with NO mcp:use scope — Passport's CheckToken
@@ -108,7 +108,7 @@ final class McpScopeTest extends TestCase
      */
     public function testGivenTokenWithMcpUseScopeThenInitializeReturnsJsonRpcResponse(): void
     {
-        FireflyConfig::set('allow_mcp', true);
+        AppConfiguration::set('allow_mcp', true);
 
         $user = $this->createAuthenticatedUser();
         Passport::actingAs($user, ['mcp:use']);
@@ -140,7 +140,7 @@ final class McpScopeTest extends TestCase
         // The middleware chain is auth:api → CheckToken → McpFeatureFlag, so a fully
         // authorised request (valid token + mcp:use scope) still gets 404 when the
         // feature flag is off. This proves the kill switch wins over auth.
-        FireflyConfig::set('allow_mcp', false);
+        AppConfiguration::set('allow_mcp', false);
 
         $user = $this->createAuthenticatedUser();
         Passport::actingAs($user, ['mcp:use']);
