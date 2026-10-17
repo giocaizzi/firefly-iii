@@ -5,10 +5,10 @@
 # vendor/ + built frontend assets baked in via the Azure DevOps MainImage pipeline), then
 # patch
 # /var/www/html with the source files we changed on feat/mcp-integration. Run
-# `composer install` to fetch laravel/mcp and its dependencies into vendor/. Upstream's
-# entrypoint.sh runs `composer dump-autoload` + `php artisan package:discover` +
-# `config:cache` + `event:cache` at container startup, so the MCP service provider
-# will register without further build-time work.
+# `composer install` to fetch laravel/mcp and its dependencies into vendor/, then run
+# `package:discover` so bootstrap/cache/packages.php registers laravel/mcp's service
+# provider (which loads routes/ai.php). Upstream's entrypoint.sh no longer runs
+# discovery at startup (commented out since 6.7.9), so it must happen at build time.
 
 # Base image tag, pinned to the upstream release this overlay was built against. The
 # upstream-sync workflow passes the matching release (e.g. version-6.6.3) so the base
@@ -40,13 +40,15 @@ COPY composer.lock /var/www/html/composer.lock
 WORKDIR /var/www/html
 
 # Install only the new MCP runtime dependencies into the existing vendor/ tree.
-# --no-dev keeps the production posture; package:discover runs from upstream's
-# entrypoint.sh at container start, so --no-scripts here avoids running artisan
-# before the application is configured.
+# --no-dev keeps the production posture; --no-scripts skips composer's artisan hooks,
+# and package:discover runs explicitly with a throwaway APP_KEY (artisan refuses to boot
+# without one; it is not stored in the image).
 RUN chown -R www-data:www-data /var/www/html/composer.json /var/www/html/composer.lock \
                                 /var/www/html/app /var/www/html/routes /var/www/html/database \
-                                /var/www/html/config /var/www/html/vendor \
- && su www-data -s /bin/bash -c "composer install --no-dev --optimize-autoloader --no-scripts --no-interaction"
+                                /var/www/html/config /var/www/html/vendor /var/www/html/bootstrap/cache \
+ && su www-data -s /bin/bash -c "composer install --no-dev --optimize-autoloader --no-scripts --no-interaction" \
+ && su www-data -s /bin/bash -c 'APP_KEY="base64:$(head -c 32 /dev/urandom | base64)" php artisan package:discover --no-interaction' \
+ && grep -q "laravel/mcp" bootstrap/cache/packages.php
 
 # Drop privileges before the image is run.
 USER www-data
