@@ -29,11 +29,13 @@ use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Attributes\Description;
+use Laravel\Mcp\Server\Tools\Annotations\IsDestructive;
 
 /**
  * Create a single-journal withdrawal transaction.
  */
 #[Description('Create a withdrawal (spend) transaction in the authenticated user\'s ledger.')]
+#[IsDestructive(false)]
 final class CreateWithdrawalTool extends AbstractMcpTool
 {
     use WritesTransactions;

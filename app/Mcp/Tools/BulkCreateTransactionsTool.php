@@ -50,7 +50,7 @@ use function Safe\json_encode;
  * at the end with totals. Failures are logged at `error` with the offending index.
  */
 #[Description('Create up to 100 transactions atomically. Each item is a withdrawal, deposit, or transfer.')]
-#[IsDestructive]
+#[IsDestructive(false)]
 final class BulkCreateTransactionsTool extends AbstractMcpTool
 {
     use WritesTransactions;

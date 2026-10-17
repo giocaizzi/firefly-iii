@@ -29,6 +29,7 @@ use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Attributes\Description;
+use Laravel\Mcp\Server\Tools\Annotations\IsDestructive;
 
 /**
  * Create a single-journal transfer between two asset accounts.
@@ -37,6 +38,7 @@ use Laravel\Mcp\Server\Attributes\Description;
  * must share the same currency. Users who need cross-currency must use the REST API.
  */
 #[Description('Create a transfer between two of the authenticated user\'s asset accounts (same currency only).')]
+#[IsDestructive(false)]
 final class CreateTransferTool extends AbstractMcpTool
 {
     use WritesTransactions;

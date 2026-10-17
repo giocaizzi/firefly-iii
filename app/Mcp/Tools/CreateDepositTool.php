@@ -29,11 +29,13 @@ use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Attributes\Description;
+use Laravel\Mcp\Server\Tools\Annotations\IsDestructive;
 
 /**
  * Create a single-journal deposit transaction.
  */
 #[Description('Create a deposit (income) transaction in the authenticated user\'s ledger.')]
+#[IsDestructive(false)]
 final class CreateDepositTool extends AbstractMcpTool
 {
     use WritesTransactions;
