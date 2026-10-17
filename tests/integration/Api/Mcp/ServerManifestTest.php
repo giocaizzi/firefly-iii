@@ -119,6 +119,38 @@ final class ServerManifestTest extends TestCase
     }
 
     /**
+     * Clients group tools by their annotations (read-only vs write/delete), so every tool must
+     * carry a title and an explicit readOnlyHint, and every write tool an explicit destructiveHint.
+     *
+     * @covers \FireflyIII\Mcp\Tools\AbstractMcpTool
+     */
+    public function testEveryToolIsAnnotated(): void
+    {
+        $body = $this->mcpCall('tools/list')->assertOk()->json();
+
+        foreach ($body['result']['tools'] as $tool) {
+            $name        = $tool['name'];
+            $annotations = $tool['annotations'] ?? [];
+
+            self::assertNotEmpty($tool['title'] ?? '', sprintf('Tool %s has no title.', $name));
+            self::assertStringEndsNotWith(' Tool', $tool['title'], sprintf('Tool %s title keeps the class suffix.', $name));
+            self::assertSame($tool['title'], $annotations['title'] ?? null, sprintf('Tool %s has no annotations.title.', $name));
+            self::assertIsBool($annotations['readOnlyHint'] ?? null, sprintf('Tool %s has no readOnlyHint.', $name));
+
+            if (str_starts_with($name, 'list-') || str_starts_with($name, 'get-') || str_starts_with($name, 'search-')) {
+                self::assertTrue($annotations['readOnlyHint'], sprintf('Tool %s should be read-only.', $name));
+            }
+            if (false === $annotations['readOnlyHint']) {
+                self::assertIsBool($annotations['destructiveHint'] ?? null, sprintf('Write tool %s has no destructiveHint.', $name));
+            }
+            if (str_starts_with($name, 'delete-')) {
+                self::assertFalse($annotations['readOnlyHint'], sprintf('Tool %s cannot be read-only.', $name));
+                self::assertTrue($annotations['destructiveHint'], sprintf('Tool %s must be destructive.', $name));
+            }
+        }
+    }
+
+    /**
      * @covers \FireflyIII\Mcp\Servers\FireflyServer
      */
     public function testResourcesListExposesEntireResourceSurface(): void

@@ -27,6 +27,7 @@ namespace FireflyIII\Mcp\Tools;
 use FireflyIII\Mcp\Support\JsonApiReducer;
 use FireflyIII\Support\Facades\Preferences;
 use FireflyIII\User;
+use Illuminate\Support\Str;
 use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Tool;
@@ -41,6 +42,29 @@ use League\Fractal\Serializer\JsonApiSerializer;
  */
 abstract class AbstractMcpTool extends Tool
 {
+    /**
+     * Human-readable title, without the "Tool" suffix every class name carries.
+     */
+    public function title(): string
+    {
+        return Str::chopEnd(parent::title(), ' Tool');
+    }
+
+    /**
+     * Tool annotations as advertised over `tools/list`.
+     *
+     * Every tool states `readOnlyHint` explicitly so clients can split read-only tools from
+     * write tools without falling back to the spec defaults (readOnlyHint=false,
+     * destructiveHint=true). Read-only tools opt in with #[IsReadOnly]; write tools declare
+     * #[IsDestructive] or #[IsDestructive(false)].
+     *
+     * @return array<string, mixed>
+     */
+    public function annotations(): array
+    {
+        return ['title' => $this->title(), 'readOnlyHint' => false, ...parent::annotations()];
+    }
+
     /**
      * Fractal Manager configured to match the project's REST API (see Controller::getManager()).
      */
