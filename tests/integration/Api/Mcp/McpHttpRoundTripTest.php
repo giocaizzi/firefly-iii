@@ -115,11 +115,11 @@ final class McpHttpRoundTripTest extends TestCase
     {
         $this->authenticate();
 
-        $names = array_column($this->mcpCall('tools/list')->assertOk()->json()['result']['tools'] ?? [], 'name');
+        $names = array_column($this->mcpCall('tools/list', [], 'all')->assertOk()->json()['result']['tools'] ?? [], 'name');
         self::assertNotEmpty($names, 'tools/list advertised no tools to sweep.');
 
         foreach ($names as $name) {
-            $body = $this->mcpCall('tools/call', ['name' => $name, 'arguments' => new \stdClass()])->assertOk()->json();
+            $body = $this->mcpCall('tools/call', ['name' => $name, 'arguments' => new \stdClass()], 'all')->assertOk()->json();
 
             self::assertArrayNotHasKey('error', $body, sprintf('Tool %s is not dispatchable over HTTP.', $name));
             self::assertArrayHasKey('content', $body['result'] ?? [], sprintf('Tool %s returned no content envelope.', $name));

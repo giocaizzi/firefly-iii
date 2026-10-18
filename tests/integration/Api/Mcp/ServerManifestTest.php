@@ -135,7 +135,7 @@ final class ServerManifestTest extends TestCase
      */
     public function testEveryToolIsAnnotated(): void
     {
-        $body = $this->mcpCall('tools/list')->assertOk()->json();
+        $body = $this->mcpCall('tools/list', [], 'all')->assertOk()->json();
 
         foreach ($body['result']['tools'] as $tool) {
             $name        = $tool['name'];
@@ -187,7 +187,7 @@ final class ServerManifestTest extends TestCase
      */
     public function testToolsListExposesEntireSurfaceInOneResponse(): void
     {
-        $body = $this->mcpCall('tools/list')->assertOk()->json();
+        $body = $this->mcpCall('tools/list', [], 'all')->assertOk()->json();
 
         $names = array_column($body['result']['tools'] ?? [], 'name');
         sort($names);

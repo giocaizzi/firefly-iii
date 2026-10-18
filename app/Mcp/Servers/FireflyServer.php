@@ -97,7 +97,17 @@ use FireflyIII\Mcp\Tools\UpdateRuleGroupTool;
 use FireflyIII\Mcp\Tools\UpdateRuleTool;
 use FireflyIII\Mcp\Tools\UpdateTransactionTool;
 use FireflyIII\Mcp\Tools\WebhooksWriteTool;
+use Illuminate\Container\Container;
+use Laravel\Mcp\Exceptions\JsonRpcException;
 use Laravel\Mcp\Server;
+use Laravel\Mcp\Server\Contracts\Transport;
+use Laravel\Mcp\Server\ServerContext;
+use Laravel\Mcp\Server\Tool;
+use Laravel\Mcp\Server\Transport\HttpTransport;
+use Laravel\Mcp\Transport\JsonRpcRequest;
+use Laravel\Mcp\Transport\JsonRpcResponse;
+use Override;
+use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 
 /**
  * Single MCP server entrypoint for Firefly III.
@@ -227,11 +237,84 @@ final class FireflyServer extends Server
         currency (`meta.primary_currency`) unless the row has `currency`. Invalid arguments
         return {"error":"invalid_argument","field":..,"message":..}.
         Search syntax: resource firefly-iii://help/search.
+        `?toolset=all` on the endpoint URL adds the admin tools (budget, piggy bank, recurrence, currency, webhook management).
         MARKDOWN;
 
-    public function __construct(\Laravel\Mcp\Server\Contracts\Transport $transport)
+    /**
+     * Tools registered on the server but left out of this connection's toolset.
+     *
+     * @var list<class-string>
+     */
+    private array $excludedTools = [];
+
+    public function __construct(Transport $transport)
     {
         parent::__construct($transport);
         $this->version = (string) config('firefly.version');
+    }
+
+    /**
+     * Narrow $tools to the toolset the `toolset` query parameter selects (see Toolset). Only
+     * HTTP connections carry the parameter; other transports (stdio, the test harness) keep
+     * every tool.
+     */
+    #[Override]
+    protected function boot(): void
+    {
+        if (!$this->transport instanceof HttpTransport) {
+            return;
+        }
+        $value   = request()->query(Toolset::QUERY_PARAMETER, Toolset::Everyday->value);
+        $toolset = is_string($value) ? Toolset::tryFrom($value) : null;
+        if (null === $toolset) {
+            throw new BadRequestHttpException(sprintf(
+                'Unknown toolset; use ?%s=%s (default) or ?%1$s=%s.',
+                Toolset::QUERY_PARAMETER,
+                Toolset::Everyday->value,
+                Toolset::All->value
+            ));
+        }
+        $this->excludedTools = array_values(array_filter($this->tools, static fn (string $tool): bool => !$toolset->includes($tool)));
+        $this->tools         = array_values(array_filter($this->tools, static fn (string $tool): bool => $toolset->includes($tool)));
+    }
+
+    /**
+     * Name the toolset when a call targets a tool this connection's toolset leaves out, instead
+     * of laravel/mcp's bare "not found".
+     *
+     * @return iterable<JsonRpcResponse>|JsonRpcResponse
+     *
+     * @throws JsonRpcException
+     */
+    #[Override]
+    protected function runMethodHandle(JsonRpcRequest $request, ServerContext $context): iterable|JsonRpcResponse
+    {
+        try {
+            return parent::runMethodHandle($request, $context);
+        } catch (JsonRpcException $e) {
+            $name = $request->get('name');
+            if ('tools/call' !== $request->method || !in_array($name, $this->excludedToolNames(), true)) {
+                throw $e;
+            }
+
+            throw new JsonRpcException(
+                sprintf('Tool [%s] is not in the everyday toolset; connect with ?%s=%s to use it.', $name, Toolset::QUERY_PARAMETER, Toolset::All->value),
+                -32602,
+                $request->id
+            );
+        }
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function excludedToolNames(): array
+    {
+        return array_map(static function (string $tool): string {
+            /** @var Tool $instance */
+            $instance = Container::getInstance()->make($tool);
+
+            return $instance->name();
+        }, $this->excludedTools);
     }
 }
