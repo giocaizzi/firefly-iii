@@ -102,7 +102,7 @@ class SetSourceToCashAccount implements ActionInterface
             return false;
         }
 
-        event(new TransactionGroupRequestsAuditLogEntry($this->action->rule, $object, 'set_source', $journal['source_account_name'] ?? null, $cashAccount->name));
+        event(new TransactionGroupRequestsAuditLogEntry($this->action->rule, $object, 'set_source', null, $cashAccount->name));
 
         // update destination transaction with new destination account:
         DB::table('transactions')->where('transaction_journal_id', '=', $object->id)->where('amount', '<', 0)->update(['account_id' => $cashAccount->id]);

@@ -115,7 +115,7 @@ class SetSourceAccount implements ActionInterface
         // update source transaction with new source account:
         DB::table('transactions')->where('transaction_journal_id', '=', $object->id)->where('amount', '<', 0)->update(['account_id' => $newAccount->id]);
 
-        event(new TransactionGroupRequestsAuditLogEntry($this->action->rule, $object, 'set_source', $journal['source_account_name'] ?? null, $newAccount->name));
+        event(new TransactionGroupRequestsAuditLogEntry($this->action->rule, $object, 'set_source', null, $newAccount->name));
 
         Log::debug(sprintf('Updated journal #%d (group #%d) and gave it new source account ID.', $object->id, $object->transaction_group_id));
 

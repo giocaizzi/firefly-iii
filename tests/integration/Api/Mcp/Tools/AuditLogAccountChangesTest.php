@@ -29,6 +29,7 @@ use FireflyIII\Enums\AccountTypeEnum;
 use FireflyIII\Mcp\Tools\ApplyRuleTool;
 use FireflyIII\Mcp\Tools\CreateRuleTool;
 use FireflyIII\Mcp\Tools\GetAuditLogTool;
+use FireflyIII\Models\AuditLogEntry;
 use FireflyIII\Repositories\AuditLogEntry\ALERepositoryInterface;
 use Tests\integration\Api\Mcp\Concerns\EnsuresPassportKeys;
 use Tests\integration\Api\Mcp\Concerns\InvokesMcpServer;
@@ -36,8 +37,8 @@ use Tests\integration\Api\Mcp\Concerns\SeedsFireflyData;
 use Tests\integration\TestCase;
 
 /**
- * Covers the `before` value of source/destination account changes in get-audit-log: recorded
- * by the rule actions, inferred for older entries that were stored without it.
+ * Covers the `before` value get-audit-log infers for source/destination account changes,
+ * which Firefly's rule actions store without one.
  *
  * @internal
  *
@@ -48,33 +49,6 @@ final class AuditLogAccountChangesTest extends TestCase
     use EnsuresPassportKeys;
     use InvokesMcpServer;
     use SeedsFireflyData;
-
-    /**
-     * @covers \FireflyIII\Mcp\Tools\GetAuditLogTool
-     */
-    public function testGivenAccountChangesWhenReadingAuditLogThenBeforeIsFilled(): void
-    {
-        $user     = $this->createAuthenticatedUser();
-        $checking = $this->createAccount($user, AccountTypeEnum::ASSET, 'Checking');
-        $this->createAccount($user, AccountTypeEnum::ASSET, 'Savings');
-        $shop  = $this->createAccount($user, AccountTypeEnum::EXPENSE, 'Shop');
-        $tx    = $this->createWithdrawal($user, $checking, $shop, '3.00', 'coffee');
-        $group = $this->createRuleGroup($user, 'Accounts');
-
-        $created = $this->decodeJson($this->invokeTool($user, CreateRuleTool::class, [
-            'title'         => 'Move',
-            'rule_group_id' => $group->id,
-            'triggers'      => [['type' => 'description_is', 'value' => 'coffee']],
-            'actions'       => [['type' => 'set_source_account', 'value' => 'Savings']]
-        ]));
-        $this->invokeTool($user, ApplyRuleTool::class, ['rule_id' => $created['data']['id'], 'transaction_ids' => [$tx->id]])->assertOk();
-
-        $log   = $this->decodeJson($this->invokeTool($user, GetAuditLogTool::class, ['transaction_id' => $tx->id]));
-        $entry = $this->entry($log['entries'], 'set_source');
-        self::assertSame('Checking', $entry['before']);
-        self::assertSame('Savings', $entry['after']);
-        self::assertArrayNotHasKey('before_inferred', $entry);
-    }
 
     /**
      * @covers \FireflyIII\Mcp\Tools\GetAuditLogTool
@@ -107,24 +81,47 @@ final class AuditLogAccountChangesTest extends TestCase
         self::assertTrue($log['entries'][1]['before_inferred']);
     }
 
+    /**
+     * @covers \FireflyIII\Mcp\Tools\GetAuditLogTool
+     */
+    public function testGivenTwoRuleAccountChangesWhenReadingAuditLogThenSecondBeforeIsInferred(): void
+    {
+        $user     = $this->createAuthenticatedUser();
+        $checking = $this->createAccount($user, AccountTypeEnum::ASSET, 'Checking');
+        $this->createAccount($user, AccountTypeEnum::ASSET, 'Savings');
+        $this->createAccount($user, AccountTypeEnum::ASSET, 'Spare');
+        $shop  = $this->createAccount($user, AccountTypeEnum::EXPENSE, 'Shop');
+        $tx    = $this->createWithdrawal($user, $checking, $shop, '3.00', 'coffee');
+        $group = $this->createRuleGroup($user, 'Accounts');
+
+        foreach (['Savings', 'Spare'] as $account) {
+            $created = $this->decodeJson($this->invokeTool($user, CreateRuleTool::class, [
+                'title'         => sprintf('Move to %s', $account),
+                'rule_group_id' => $group->id,
+                'triggers'      => [['type' => 'description_is', 'value' => 'coffee']],
+                'actions'       => [['type' => 'set_source_account', 'value' => $account]]
+            ]));
+            $this->invokeTool($user, ApplyRuleTool::class, ['rule_id' => $created['data']['id'], 'transaction_ids' => [$tx->id]])->assertOk();
+            if ('Savings' === $account) {
+                // backdate the first change so the order does not depend on the clock
+                AuditLogEntry::query()->update(['created_at' => Carbon::parse('2026-05-01')]);
+            }
+        }
+
+        $log     = $this->decodeJson($this->invokeTool($user, GetAuditLogTool::class, ['transaction_id' => $tx->id]));
+        $entries = array_values(array_filter($log['entries'], static fn(array $entry): bool => 'set_source' === $entry['action']));
+
+        self::assertCount(2, $entries);
+        self::assertSame('Savings', $entries[0]['after']);
+        self::assertArrayNotHasKey('before_inferred', $entries[0]);
+        self::assertSame('Savings', $entries[1]['before']);
+        self::assertSame('Spare', $entries[1]['after']);
+        self::assertTrue($entries[1]['before_inferred']);
+    }
+
     protected function setUp(): void
     {
         parent::setUp();
         $this->ensurePassportKeysExist();
-    }
-
-    /**
-     * @param list<array<string, mixed>> $entries
-     *
-     * @return array<string, mixed>
-     */
-    private function entry(array $entries, string $action): array
-    {
-        foreach ($entries as $entry) {
-            if ($action === $entry['action']) {
-                return $entry;
-            }
-        }
-        self::fail(sprintf('No "%s" entry in the audit log.', $action));
     }
 }

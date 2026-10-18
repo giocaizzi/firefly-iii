@@ -68,7 +68,7 @@ Edge cases and known quirks. Skim once; come back when something behaves unexpec
 - Rule triggers are search operators (`firefly-iii://help/search`); a `-` prefix on the type, or `prohibited: true`, negates one. `strict: true` = all triggers must match, `false` (default) = any.
 - `create-rule` / `update-rule` reject unknown trigger or action types, missing values for operators and actions that need one, and rules without an active trigger and action.
 - `apply-rule` needs a scope (`start`, `end`, `transaction_ids` or `account_ids`) and returns `affected` = transactions it changed. A rule group runs its active rules in order, each on its own: `stop_processing` does not stop the group here (same as the REST API and the web UI's "execute").
-- `get-audit-log` fills `before` for source/destination account changes; for older entries it is taken from the previous change of the same field and marked `before_inferred: true`.
+- Firefly stores source/destination account changes without `before`; `get-audit-log` fills it from the previous change of the same field on the same transaction and marks it `before_inferred: true`. The first such change stays `null`.
 
 ## Feature flags
 
