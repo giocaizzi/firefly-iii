@@ -27,6 +27,7 @@ namespace FireflyIII\Mcp\Tools;
 use Carbon\Carbon;
 use FireflyIII\Mcp\Resources\SearchHelpResource;
 use FireflyIII\Mcp\Support\InvalidArgument;
+use FireflyIII\Mcp\Tools\Concerns\AggregatesTransactions;
 use FireflyIII\Mcp\Tools\Concerns\ProjectsTransactions;
 use FireflyIII\Support\JsonApi\Enrichments\TransactionGroupEnrichment;
 use FireflyIII\Support\Search\SearchInterface;
@@ -46,6 +47,7 @@ use League\Fractal\Resource\Collection as FractalCollection;
 #[IsIdempotent]
 final class SearchTransactionsTool extends AbstractMcpTool
 {
+    use AggregatesTransactions;
     use ProjectsTransactions {
         shape as private projectedShape;
     }
@@ -59,6 +61,7 @@ final class SearchTransactionsTool extends AbstractMcpTool
         $user = auth()->user();
         [$page, $limit] = $this->pageAndLimit($request);
         $this->validateShapeArgs($request);
+        $aggregateOptions = $this->aggregateOptions($request);
 
         $query = (string) $request->get('query', '');
         $query = $this->maybeAppendDate($query, 'date_after', $this->dateArg($request, 'start'));
@@ -66,6 +69,20 @@ final class SearchTransactionsTool extends AbstractMcpTool
 
         if ('' === trim($query)) {
             InvalidArgument::fail('query', 'Search query is required.');
+        }
+
+        $aggregate = null;
+        if (null !== $aggregateOptions) {
+            // unpaged run over every match; collector arrays only, no enrichment or transformer.
+            $all = app(SearchInterface::class);
+            $all->setUser($user);
+            $all->parseQuery($query);
+            $aggregate = $this->buildAggregate($all->searchTransactions()->getCollection(), $aggregateOptions);
+            if (false === $aggregateOptions['rows']) {
+                $warnings = $this->invalidOperatorWarnings($all);
+
+                return $this->respondWithAggregate(null, $aggregate, $request, [] === $warnings ? [] : ['warnings' => $warnings]);
+            }
         }
 
         $searcher = app(SearchInterface::class);
@@ -76,12 +93,7 @@ final class SearchTransactionsTool extends AbstractMcpTool
 
         $groups = $searcher->searchTransactions();
 
-        $this->warnings = array_map(static fn(array $operator): string => sprintf(
-            'Unknown or invalid operator "%s:%s" was ignored; see %s.',
-            $operator['type'],
-            $operator['value'],
-            SearchHelpResource::URI
-        ), $searcher->getInvalidOperators());
+        $this->warnings = $this->invalidOperatorWarnings($searcher);
 
         $enrichment = new TransactionGroupEnrichment();
         $enrichment->setUser($user);
@@ -92,6 +104,10 @@ final class SearchTransactionsTool extends AbstractMcpTool
         $resource->setPaginator(new IlluminatePaginatorAdapter($groups));
 
         $document = $this->jsonApiManager()->createData($resource)->toArray();
+
+        if (null !== $aggregate) {
+            return $this->respondWithAggregate($document, $aggregate, $request);
+        }
 
         return $this->respondJsonApi($document, $request);
     }
@@ -106,7 +122,8 @@ final class SearchTransactionsTool extends AbstractMcpTool
             'start' => $schema->string()->format('date')->description('Adds date_after:YYYY-MM-DD unless the query has one.'),
             'end'   => $schema->string()->format('date')->description('Adds date_before:YYYY-MM-DD unless the query has one.'),
             ...$this->pagingSchema($schema),
-            ...$this->transactionOutputSchema($schema)
+            ...$this->transactionOutputSchema($schema),
+            ...$this->aggregateSchema($schema)
         ];
     }
 
@@ -123,6 +140,19 @@ final class SearchTransactionsTool extends AbstractMcpTool
         }
 
         return $result;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function invalidOperatorWarnings(SearchInterface $searcher): array
+    {
+        return array_map(static fn(array $operator): string => sprintf(
+            'Unknown or invalid operator "%s:%s" was ignored; see %s.',
+            $operator['type'],
+            $operator['value'],
+            SearchHelpResource::URI
+        ), $searcher->getInvalidOperators());
     }
 
     private function maybeAppendDate(string $query, string $operator, null|Carbon $date): string

@@ -28,12 +28,14 @@ use Carbon\Carbon;
 use FireflyIII\Enums\TransactionTypeEnum;
 use FireflyIII\Helpers\Collector\GroupCollectorInterface;
 use FireflyIII\Mcp\Support\InvalidArgument;
+use FireflyIII\Mcp\Tools\Concerns\AggregatesTransactions;
 use FireflyIII\Mcp\Tools\Concerns\ProjectsTransactions;
 use FireflyIII\Repositories\Account\AccountRepositoryInterface;
 use FireflyIII\Support\JsonApi\Enrichments\TransactionGroupEnrichment;
 use FireflyIII\Transformers\TransactionGroupTransformer;
 use FireflyIII\User;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
+use Illuminate\Support\Collection;
 use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Attributes\Description;
@@ -47,6 +49,7 @@ use League\Fractal\Resource\Collection as FractalCollection;
 #[IsIdempotent]
 final class ListTransactionsTool extends AbstractMcpTool
 {
+    use AggregatesTransactions;
     use ProjectsTransactions;
 
     private const array TYPES = ['default', 'all', 'withdrawal', 'deposit', 'transfer', 'opening_balance', 'reconciliation'];
@@ -57,19 +60,14 @@ final class ListTransactionsTool extends AbstractMcpTool
         $user = auth()->user();
         [$page, $limit] = $this->pageAndLimit($request);
         $this->validateShapeArgs($request);
+        $aggregateOptions = $this->aggregateOptions($request);
 
         $types = $this->mapTypes($this->enumArg($request, 'type', self::TYPES, 'default'));
-
-        $collector = app(GroupCollectorInterface::class);
-        $collector->setUser($user)->withAPIInformation()->setLimit($limit)->setPage($page)->setTypes($types);
 
         $start = $this->dateArg($request, 'start');
         $end   = $this->dateArg($request, 'end');
         if (null !== $start && null !== $end && $start->gt($end)) {
             InvalidArgument::fail('start', 'start must not be after end.');
-        }
-        if (null !== $start || null !== $end) {
-            $collector->setRange($start ?? Carbon::createFromTimestamp(0), $end ?? Carbon::now()->endOfDay());
         }
 
         $accountIds = [];
@@ -87,6 +85,7 @@ final class ListTransactionsTool extends AbstractMcpTool
             }
             $accountIds[] = (int) $found->id;
         }
+        $accounts = null;
         if ([] !== $accountIds) {
             $accountRepository = app(AccountRepositoryInterface::class);
             $accountRepository->setUser($user);
@@ -94,9 +93,19 @@ final class ListTransactionsTool extends AbstractMcpTool
             if (0 === $accounts->count()) {
                 InvalidArgument::fail('account_id', sprintf('Account #%d not found.', $accountIds[0]));
             }
-            $collector->setAccounts($accounts);
         }
 
+        $aggregate = null;
+        if (null !== $aggregateOptions) {
+            // unpaged run over every match; collector arrays only, no enrichment or transformer.
+            $all       = $this->filteredCollector($user, $types, $start, $end, $accounts)->withAccountInformation()->withCategoryInformation();
+            $aggregate = $this->buildAggregate($all->getGroups(), $aggregateOptions);
+            if (false === $aggregateOptions['rows']) {
+                return $this->respondWithAggregate(null, $aggregate, $request);
+            }
+        }
+
+        $collector = $this->filteredCollector($user, $types, $start, $end, $accounts)->withAPIInformation()->setLimit($limit)->setPage($page);
         $paginator = $collector->getPaginatedGroups();
 
         $enrichment = new TransactionGroupEnrichment();
@@ -108,6 +117,10 @@ final class ListTransactionsTool extends AbstractMcpTool
         $resource->setPaginator(new IlluminatePaginatorAdapter($paginator));
 
         $document = $this->jsonApiManager()->createData($resource)->toArray();
+
+        if (null !== $aggregate) {
+            return $this->respondWithAggregate($document, $aggregate, $request);
+        }
 
         return $this->respondJsonApi($document, $request);
     }
@@ -124,8 +137,26 @@ final class ListTransactionsTool extends AbstractMcpTool
             'account_name' => $schema->string()->description('Exact account name; ignored when account_id is set.'),
             'type'         => $schema->string()->enum(self::TYPES)->description('default = withdrawal+deposit+transfer.'),
             ...$this->pagingSchema($schema),
-            ...$this->transactionOutputSchema($schema)
+            ...$this->transactionOutputSchema($schema),
+            ...$this->aggregateSchema($schema)
         ];
+    }
+
+    /**
+     * @param array<int, string> $types
+     */
+    private function filteredCollector(User $user, array $types, null|Carbon $start, null|Carbon $end, null|Collection $accounts): GroupCollectorInterface
+    {
+        $collector = app(GroupCollectorInterface::class);
+        $collector->setUser($user)->setTypes($types);
+        if (null !== $start || null !== $end) {
+            $collector->setRange($start ?? Carbon::createFromTimestamp(0), $end ?? Carbon::now()->endOfDay());
+        }
+        if (null !== $accounts) {
+            $collector->setAccounts($accounts);
+        }
+
+        return $collector;
     }
 
     /**
