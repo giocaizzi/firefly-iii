@@ -83,7 +83,7 @@ final class SearchTransactionsToolTest extends TestCase
         $destination = $this->createAccount($user, AccountTypeEnum::EXPENSE, 'Supermarket');
         $this->createWithdrawal($user, $source, $destination, '42.00', 'groceries');
 
-        $response = $this->invokeTool($user, SearchTransactionsTool::class, ['query' => 'groceries']);
+        $response = $this->invokeTool($user, SearchTransactionsTool::class, ['query' => 'groceries', 'compact' => false]);
         $response->assertOk();
 
         $payload = $this->decodeJson($response);

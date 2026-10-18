@@ -55,7 +55,7 @@ final class GetTransactionToolTest extends TestCase
         $destination = $this->createAccount($user, AccountTypeEnum::EXPENSE, 'Groceries');
         $group       = $this->createWithdrawal($user, $source, $destination, '12.50', 'Lunch');
 
-        $response = $this->invokeTool($user, GetTransactionTool::class, ['id' => $group->id]);
+        $response = $this->invokeTool($user, GetTransactionTool::class, ['id' => $group->id, 'compact' => false]);
         $response->assertOk();
 
         $payload = $this->decodeJson($response);

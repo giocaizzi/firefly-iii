@@ -25,6 +25,9 @@ declare(strict_types=1);
 namespace FireflyIII\Mcp\Tools;
 
 use Carbon\Carbon;
+use FireflyIII\Mcp\Resources\SearchHelpResource;
+use FireflyIII\Mcp\Support\InvalidArgument;
+use FireflyIII\Mcp\Tools\Concerns\ProjectsTransactions;
 use FireflyIII\Support\JsonApi\Enrichments\TransactionGroupEnrichment;
 use FireflyIII\Support\Search\SearchInterface;
 use FireflyIII\Transformers\TransactionGroupTransformer;
@@ -38,23 +41,31 @@ use Laravel\Mcp\Server\Tools\Annotations\IsReadOnly;
 use League\Fractal\Pagination\IlluminatePaginatorAdapter;
 use League\Fractal\Resource\Collection as FractalCollection;
 
-#[Description('Search transactions using the Firefly III query language; mirrors /api/v1/search/transactions.')]
+#[Description('Search transactions with the Firefly III query language (text plus operators like amount_more:50). Syntax: resource firefly-iii://help/search.')]
 #[IsReadOnly]
 #[IsIdempotent]
 final class SearchTransactionsTool extends AbstractMcpTool
 {
+    use ProjectsTransactions {
+        shape as private projectedShape;
+    }
+
+    /** @var list<string> */
+    private array $warnings = [];
+
     public function handle(Request $request): Response
     {
         /** @var User $user */
         $user = auth()->user();
         [$page, $limit] = $this->pageAndLimit($request);
+        $this->validateShapeArgs($request);
 
         $query = (string) $request->get('query', '');
-        $query = $this->maybeAppendDate($query, 'date_after', $this->parseDate($request->get('start')));
-        $query = $this->maybeAppendDate($query, 'date_before', $this->parseDate($request->get('end')));
+        $query = $this->maybeAppendDate($query, 'date_after', $this->dateArg($request, 'start'));
+        $query = $this->maybeAppendDate($query, 'date_before', $this->dateArg($request, 'end'));
 
         if ('' === trim($query)) {
-            return Response::error('Search query is required.');
+            InvalidArgument::fail('query', 'Search query is required.');
         }
 
         $searcher = app(SearchInterface::class);
@@ -64,6 +75,13 @@ final class SearchTransactionsTool extends AbstractMcpTool
         $searcher->setLimit($limit);
 
         $groups = $searcher->searchTransactions();
+
+        $this->warnings = array_map(static fn(array $operator): string => sprintf(
+            'Unknown or invalid operator "%s:%s" was ignored; see %s.',
+            $operator['type'],
+            $operator['value'],
+            SearchHelpResource::URI
+        ), $searcher->getInvalidOperators());
 
         $enrichment = new TransactionGroupEnrichment();
         $enrichment->setUser($user);
@@ -84,20 +102,27 @@ final class SearchTransactionsTool extends AbstractMcpTool
     public function schema(JsonSchema $schema): array
     {
         return [
-            'query'         => $schema->string()->required()->description('Firefly III search query, e.g. "groceries amount_more:50 date_after:2026-01-01".'),
-            'start'         => $schema
-                ->string()
-                ->format('date')
-                ->description('Optional inclusive start date; injected as date_after:YYYY-MM-DD if not present in `query`.'),
-            'end'           => $schema
-                ->string()
-                ->format('date')
-                ->description('Optional inclusive end date; injected as date_before:YYYY-MM-DD if not present in `query`.'),
-            'page'          => $schema->integer()->description('Page number (1-based).'),
-            'limit'         => $schema->integer()->description("Items per page; defaults to the user's listPageSize preference."),
-            'verbose'       => $schema->boolean()->description('Return the raw JSON:API document instead of the reduced shape.'),
-            'include_nulls' => $schema->boolean()->description('Preserve null-valued attributes in the reduced output.')
+            'query' => $schema->string()->required()->description('e.g. "coffee amount_more:5 date_after:2026-01-01".'),
+            'start' => $schema->string()->format('date')->description('Adds date_after:YYYY-MM-DD unless the query has one.'),
+            'end'   => $schema->string()->format('date')->description('Adds date_before:YYYY-MM-DD unless the query has one.'),
+            ...$this->pagingSchema($schema),
+            ...$this->transactionOutputSchema($schema)
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $jsonApiDocument
+     *
+     * @return array<string, mixed>
+     */
+    protected function shape(array $jsonApiDocument, Request $request): array
+    {
+        $result = $this->projectedShape($jsonApiDocument, $request);
+        if ([] !== $this->warnings) {
+            $result['meta']['warnings'] = $this->warnings;
+        }
+
+        return $result;
     }
 
     private function maybeAppendDate(string $query, string $operator, null|Carbon $date): string
@@ -110,17 +135,5 @@ final class SearchTransactionsTool extends AbstractMcpTool
         }
 
         return rtrim($query) . ' ' . $operator . ':' . $date->format('Y-m-d');
-    }
-
-    private function parseDate(mixed $raw): null|Carbon
-    {
-        if (!is_string($raw) || '' === trim($raw)) {
-            return null;
-        }
-        try {
-            return Carbon::parse($raw, config('app.timezone'));
-        } catch (\Throwable) {
-            return null;
-        }
     }
 }

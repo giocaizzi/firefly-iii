@@ -25,6 +25,7 @@ declare(strict_types=1);
 namespace FireflyIII\Mcp\Tools;
 
 use FireflyIII\Api\V1\Requests\Models\Transaction\UpdateRequest;
+use FireflyIII\Mcp\Tools\Concerns\ProjectsTransactions;
 use FireflyIII\Mcp\Tools\Concerns\WritesTransactions;
 use FireflyIII\Models\TransactionGroup;
 use FireflyIII\Repositories\TransactionGroup\TransactionGroupRepositoryInterface;
@@ -46,17 +47,19 @@ use Throwable;
  * source, etc. Pass the new source/destination accordingly. Split transactions (more
  * than one journal in the group) are not supported.
  */
-#[Description('Convert a transaction to a different type (withdrawal, deposit, transfer). Provide the new source/destination accounts the target type requires. Single-journal transactions only.')]
+#[Description('Convert a single-split transaction to withdrawal, deposit or transfer; pass the accounts the new type needs.')]
 #[IsDestructive]
 #[IsIdempotent]
 final class ConvertTransactionTool extends AbstractMcpTool
 {
+    use ProjectsTransactions;
     use WritesTransactions;
 
     private const array TYPES = ['withdrawal', 'deposit', 'transfer'];
 
     public function handle(Request $request): Response
     {
+        $this->validateShapeArgs($request);
         $input         = $request->toArray();
         $transactionId = array_key_exists('transaction_id', $input) ? (int) $input['transaction_id'] : 0;
         if ($transactionId <= 0) {
@@ -68,7 +71,7 @@ final class ConvertTransactionTool extends AbstractMcpTool
         }
 
         /** @var User $user */
-        $user  = auth()->user();
+        $user = auth()->user();
 
         /** @var null|TransactionGroup $group */
         $group = TransactionGroup::where('user_id', $user->id)->find($transactionId);
@@ -124,14 +127,13 @@ final class ConvertTransactionTool extends AbstractMcpTool
     public function schema(JsonSchema $schema): array
     {
         return [
-            'transaction_id'   => $schema->integer()->required()->description('Numeric ID of the transaction group to convert.'),
-            'type'             => $schema->string()->enum(self::TYPES)->required()->description('Target transaction type.'),
-            'source_id'        => $schema->integer()->description('New source account id (required when the target type needs a different source).'),
+            'transaction_id'   => $schema->integer()->required()->description('Group id.'),
+            'type'             => $schema->string()->enum(self::TYPES)->required()->description('New type.'),
+            'source_id'        => $schema->integer()->description('Source account id, if the new type needs another.'),
             'source_name'      => $schema->string()->description('New source account name.'),
-            'destination_id'   => $schema->integer()->description('New destination account id (required when the target type needs a different destination).'),
+            'destination_id'   => $schema->integer()->description('Destination account id, if the new type needs another.'),
             'destination_name' => $schema->string()->description('New destination account name.'),
-            'verbose'          => $schema->boolean()->description('Return the full JSON:API document instead of the reduced shape.'),
-            'include_nulls'    => $schema->boolean()->description('Keep null attribute values in the reduced shape.')
+            ...$this->writeOutputSchema($schema)
         ];
     }
 
@@ -148,7 +150,7 @@ final class ConvertTransactionTool extends AbstractMcpTool
             'transaction_journal_id' => $journalId,
             'type'                   => $type
         ];
-        $map  = [
+        $map = [
             'source_id'        => 'int',
             'source_name'      => 'string',
             'destination_id'   => 'int',

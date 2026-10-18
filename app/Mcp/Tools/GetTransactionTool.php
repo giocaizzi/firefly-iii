@@ -25,6 +25,7 @@ declare(strict_types=1);
 namespace FireflyIII\Mcp\Tools;
 
 use FireflyIII\Helpers\Collector\GroupCollectorInterface;
+use FireflyIII\Mcp\Tools\Concerns\ProjectsTransactions;
 use FireflyIII\Repositories\TransactionGroup\TransactionGroupRepositoryInterface;
 use FireflyIII\Support\JsonApi\Enrichments\TransactionGroupEnrichment;
 use FireflyIII\Transformers\TransactionGroupTransformer;
@@ -37,13 +38,16 @@ use Laravel\Mcp\Server\Tools\Annotations\IsIdempotent;
 use Laravel\Mcp\Server\Tools\Annotations\IsReadOnly;
 use League\Fractal\Resource\Item;
 
-#[Description('Get a single transaction group by its id, with all splits and metadata.')]
+#[Description('Get one transaction group by group id.')]
 #[IsReadOnly]
 #[IsIdempotent]
 final class GetTransactionTool extends AbstractMcpTool
 {
+    use ProjectsTransactions;
+
     public function handle(Request $request): Response
     {
+        $this->validateShapeArgs($request);
         /** @var User $user */
         $user       = auth()->user();
         $repository = app(TransactionGroupRepositoryInterface::class);
@@ -82,9 +86,8 @@ final class GetTransactionTool extends AbstractMcpTool
     public function schema(JsonSchema $schema): array
     {
         return [
-            'id'            => $schema->integer()->required()->description('Transaction group id.'),
-            'verbose'       => $schema->boolean()->description('Return the raw JSON:API document instead of the reduced shape.'),
-            'include_nulls' => $schema->boolean()->description('Preserve null-valued attributes in the reduced output.')
+            'id' => $schema->integer()->required()->description('Group id: a row\'s group_id, else its id.'),
+            ...$this->transactionOutputSchema($schema)
         ];
     }
 }

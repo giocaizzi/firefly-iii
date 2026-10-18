@@ -24,6 +24,7 @@ declare(strict_types=1);
 
 namespace FireflyIII\Mcp\Tools;
 
+use FireflyIII\Mcp\Tools\Concerns\ProjectsTransactions;
 use FireflyIII\Mcp\Tools\Concerns\WritesTransactions;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Laravel\Mcp\Request;
@@ -34,10 +35,11 @@ use Laravel\Mcp\Server\Tools\Annotations\IsDestructive;
 /**
  * Create a single-journal deposit transaction.
  */
-#[Description('Create a deposit (income) transaction in the authenticated user\'s ledger.')]
+#[Description('Create a deposit (income).')]
 #[IsDestructive(false)]
 final class CreateDepositTool extends AbstractMcpTool
 {
+    use ProjectsTransactions;
     use WritesTransactions;
 
     public function handle(Request $request): Response
@@ -51,26 +53,22 @@ final class CreateDepositTool extends AbstractMcpTool
     public function schema(JsonSchema $schema): array
     {
         return [
-            'source_id'        => $schema->integer()->description('Numeric ID of the source revenue account.'),
-            'source_name'      => $schema->string()->description('Name of the source revenue account (created as Revenue if missing).'),
-            'destination_id'   => $schema->integer()->description('Numeric ID of the destination asset account.'),
-            'destination_name' => $schema->string()->description('Name of the destination asset account.'),
-            'amount'           => $schema
-                ->string()
-                ->required()
-                ->description('Positive decimal amount as a string (e.g. "100.00"). Currency follows the destination asset account.'),
-            'date'             => $schema->string()->required()->description('ISO-8601 date/time (e.g. "2026-05-17").'),
-            'description'      => $schema->string()->required()->description('Human-readable transaction description (1-1000 chars).'),
-            'category_id'      => $schema->integer()->description('Numeric ID of a category to attach.'),
-            'category_name'    => $schema->string()->description('Category name to attach (created if missing).'),
-            'tags'             => $schema->array()->items($schema->string())->description('Tag ids or tag names.'),
-            'notes'            => $schema->string()->description('Free-form notes attached to the journal.'),
+            'source_id'        => $schema->integer()->description('Revenue account id.'),
+            'source_name'      => $schema->string()->description('Revenue account name (created if missing).'),
+            'destination_id'   => $schema->integer()->description('Asset account id.'),
+            'destination_name' => $schema->string()->description('Asset account name.'),
+            'amount'           => $schema->string()->required()->description('Positive decimal string, e.g. "100.00".'),
+            'date'             => $schema->string()->required()->description('YYYY-MM-DD or ISO 8601 date-time.'),
+            'description'      => $schema->string()->required()->description('1-1000 chars.'),
+            'category_id'      => $schema->integer()->description('Category id.'),
+            'category_name'    => $schema->string()->description('Category name (created if missing).'),
+            'tags'             => $schema->array()->items($schema->string())->description('Tag names or ids.'),
+            'notes'            => $schema->string()->description('Notes.'),
             'idempotency_key'  => $schema
                 ->string()
                 ->max(self::MAX_IDEMPOTENCY_KEY_LENGTH)
-                ->description('Printable-ASCII key (max 128 chars) used to deduplicate retries.'),
-            'verbose'          => $schema->boolean()->description('Return the full JSON:API document instead of the reduced shape.'),
-            'include_nulls'    => $schema->boolean()->description('Keep null attribute values in the reduced shape.')
+                ->description('Retry dedup key (printable ASCII, max 128); a replay returns the original.'),
+            ...$this->writeOutputSchema($schema)
         ];
     }
 }

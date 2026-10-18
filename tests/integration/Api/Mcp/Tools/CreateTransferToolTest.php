@@ -108,7 +108,8 @@ final class CreateTransferToolTest extends TestCase
             'destination_id' => $destination->id,
             'amount'         => '25.00',
             'date'           => '2026-05-17',
-            'description'    => 'Move to savings'
+            'description'    => 'Move to savings',
+            'compact'        => false
         ]);
         $response->assertOk();
 

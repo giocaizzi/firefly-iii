@@ -55,7 +55,7 @@ final class ListTransactionsToolTest extends TestCase
         $destination = $this->createAccount($user, AccountTypeEnum::EXPENSE, 'Groceries');
         $this->createWithdrawal($user, $source, $destination, '12.50', 'Lunch');
 
-        $response = $this->invokeTool($user, ListTransactionsTool::class, []);
+        $response = $this->invokeTool($user, ListTransactionsTool::class, ['compact' => false]);
         $response->assertOk();
 
         $payload = $this->decodeJson($response);

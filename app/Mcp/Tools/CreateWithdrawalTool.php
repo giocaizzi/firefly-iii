@@ -24,6 +24,7 @@ declare(strict_types=1);
 
 namespace FireflyIII\Mcp\Tools;
 
+use FireflyIII\Mcp\Tools\Concerns\ProjectsTransactions;
 use FireflyIII\Mcp\Tools\Concerns\WritesTransactions;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Laravel\Mcp\Request;
@@ -34,10 +35,11 @@ use Laravel\Mcp\Server\Tools\Annotations\IsDestructive;
 /**
  * Create a single-journal withdrawal transaction.
  */
-#[Description('Create a withdrawal (spend) transaction in the authenticated user\'s ledger.')]
+#[Description('Create a withdrawal (expense).')]
 #[IsDestructive(false)]
 final class CreateWithdrawalTool extends AbstractMcpTool
 {
+    use ProjectsTransactions;
     use WritesTransactions;
 
     public function handle(Request $request): Response
@@ -51,33 +53,24 @@ final class CreateWithdrawalTool extends AbstractMcpTool
     public function schema(JsonSchema $schema): array
     {
         return [
-            'source_id'        => $schema->integer()->description('Numeric ID of the source asset/liability account. Provide either source_id or source_name.'),
-            'source_name'      => $schema->string()->description('Name of the source asset/liability account (resolved within the user\'s accounts).'),
-            'destination_id'   => $schema
-                ->integer()
-                ->description('Numeric ID of the destination expense account. Provide either destination_id or destination_name.'),
-            'destination_name' => $schema->string()->description('Name of the destination expense account (auto-created as Expense if it does not exist).'),
-            'amount'           => $schema
-                ->string()
-                ->required()
-                ->description('Positive decimal amount as a string (e.g. "12.50"). Currency follows the source account.'),
-            'date'             => $schema->string()->required()->description('ISO-8601 date/time (e.g. "2026-05-17" or "2026-05-17T10:00:00Z").'),
-            'description'      => $schema->string()->required()->description('Human-readable transaction description (1-1000 chars).'),
-            'category_id'      => $schema->integer()->description('Numeric ID of a category to attach.'),
-            'category_name'    => $schema->string()->description('Category name to attach (created if missing).'),
-            'budget_id'        => $schema->integer()->description('Numeric ID of a budget to attach (withdrawals only).'),
-            'budget_name'      => $schema->string()->description('Budget name to attach.'),
-            'tags'             => $schema
-                ->array()
-                ->items($schema->string())
-                ->description('Tag ids (numeric strings) or tag names; case-insensitive duplicates are removed.'),
-            'notes'            => $schema->string()->description('Free-form notes attached to the journal (max 32KB).'),
+            'source_id'        => $schema->integer()->description('Source asset/liability account id (or source_name).'),
+            'source_name'      => $schema->string()->description('Source account name.'),
+            'destination_id'   => $schema->integer()->description('Expense account id (or destination_name).'),
+            'destination_name' => $schema->string()->description('Expense account name (created if missing).'),
+            'amount'           => $schema->string()->required()->description('Positive decimal string, e.g. "12.50".'),
+            'date'             => $schema->string()->required()->description('YYYY-MM-DD or ISO 8601 date-time.'),
+            'description'      => $schema->string()->required()->description('1-1000 chars.'),
+            'category_id'      => $schema->integer()->description('Category id.'),
+            'category_name'    => $schema->string()->description('Category name (created if missing).'),
+            'budget_id'        => $schema->integer()->description('Budget id.'),
+            'budget_name'      => $schema->string()->description('Budget name.'),
+            'tags'             => $schema->array()->items($schema->string())->description('Tag names or ids.'),
+            'notes'            => $schema->string()->description('Notes.'),
             'idempotency_key'  => $schema
                 ->string()
                 ->max(self::MAX_IDEMPOTENCY_KEY_LENGTH)
-                ->description('Printable-ASCII key (max 128 chars) used to deduplicate retries; replays return the original transaction.'),
-            'verbose'          => $schema->boolean()->description('Return the full JSON:API document instead of the reduced shape (default false).'),
-            'include_nulls'    => $schema->boolean()->description('Keep null attribute values in the reduced shape (default false).')
+                ->description('Retry dedup key (printable ASCII, max 128); a replay returns the original.'),
+            ...$this->writeOutputSchema($schema)
         ];
     }
 }
