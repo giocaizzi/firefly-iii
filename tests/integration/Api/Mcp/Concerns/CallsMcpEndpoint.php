@@ -67,6 +67,24 @@ trait CallsMcpEndpoint
     }
 
     /**
+     * `tools/list` for each toolset, keyed by toolset name. Each set must arrive in one page;
+     * many clients do not follow nextCursor.
+     *
+     * @return array<string, list<array<string, mixed>>>
+     */
+    protected function toolsByToolset(): array
+    {
+        $tools = [];
+        foreach (['everyday', 'admin'] as $toolset) {
+            $result = $this->mcpCall('tools/list', [], $toolset)->assertOk()->json('result');
+            Assert::assertArrayNotHasKey('nextCursor', $result, sprintf('tools/list paginated the %s toolset; trailing tools would be invisible to clients.', $toolset));
+            $tools[$toolset] = $result['tools'] ?? [];
+        }
+
+        return $tools;
+    }
+
+    /**
      * Invoke a tool by its registered name and return the decoded JSON-RPC body.
      *
      * @param array<string, mixed> $arguments
