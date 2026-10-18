@@ -103,6 +103,31 @@ final class BillsToolsTest extends TestCase
     }
 
     /**
+     * The API has no active filter, so bills-read pages the active rows itself.
+     *
+     * @covers \FireflyIII\Mcp\Tools\BillsReadTool
+     */
+    public function testListActiveOnly(): void
+    {
+        $user     = $this->createAuthenticatedUser();
+        $active   = [$this->createBill($user, 'Internet'), $this->createBill($user, 'Phone')];
+        $inactive = $this->createBill($user, 'Gym');
+        $inactive->update(['active' => false]);
+
+        $all = $this->okJson($user, BillsReadTool::class, ['action' => 'list']);
+        self::assertCount(3, $all['data']);
+
+        $first = $this->okJson($user, BillsReadTool::class, ['action' => 'list', 'active' => true, 'limit' => 1]);
+        self::assertSame([$active[0]->id], array_column($first['data'], 'id'));
+        self::assertSame(2, $first['meta']['pagination']['total']);
+        self::assertSame(2, $first['meta']['next_page']);
+
+        $second = $this->okJson($user, BillsReadTool::class, ['action' => 'list', 'active' => true, 'limit' => 1, 'page' => 2]);
+        self::assertSame([$active[1]->id], array_column($second['data'], 'id'));
+        self::assertFalse($second['meta']['has_more']);
+    }
+
+    /**
      * @covers \FireflyIII\Mcp\Tools\BillsWriteTool
      */
     public function testValidationErrorsUseTheSharedFormat(): void

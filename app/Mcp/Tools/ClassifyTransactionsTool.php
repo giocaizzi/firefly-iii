@@ -213,7 +213,7 @@ final class ClassifyTransactionsTool extends AbstractMcpTool
                 ->items($schema->integer())
                 ->max(self::MAX_TARGETS)
                 ->description(sprintf('Group ids, max %d (or query).', self::MAX_TARGETS)),
-            'query'               => $schema->string()->description('Search query (or ids).'),
+            'query'               => $schema->string()->description('Search query (or ids). Syntax: resource firefly-iii://help/search.'),
             'limit'               => $schema
                 ->integer()
                 ->description(sprintf('Query cap, default %d, max %d; more matches = error.', self::DEFAULT_QUERY_LIMIT, self::MAX_TARGETS)),
