@@ -25,6 +25,8 @@ declare(strict_types=1);
 namespace FireflyIII\Mcp\Tools;
 
 use FireflyIII\Enums\AccountTypeEnum;
+use FireflyIII\Mcp\Support\InvalidArgument;
+use FireflyIII\Mcp\Support\TransactionProjector;
 use FireflyIII\Models\Account;
 use FireflyIII\Repositories\Account\AccountRepositoryInterface;
 use FireflyIII\Support\JsonApi\Enrichments\AccountEnrichment;
@@ -40,7 +42,7 @@ use Laravel\Mcp\Server\Tools\Annotations\IsReadOnly;
 use League\Fractal\Pagination\IlluminatePaginatorAdapter;
 use League\Fractal\Resource\Collection as FractalCollection;
 
-#[Description("List the authenticated user's accounts, optionally filtered by type or active status.")]
+#[Description('List accounts by type, name or active status, with current balances.')]
 #[IsReadOnly]
 #[IsIdempotent]
 final class ListAccountsTool extends AbstractMcpTool
@@ -60,6 +62,10 @@ final class ListAccountsTool extends AbstractMcpTool
 
         if (true === $request->get('active')) {
             $collection = $collection->filter(static fn(Account $account): bool => true === (bool) $account->active);
+        }
+        $query = trim((string) $request->get('query', ''));
+        if ('' !== $query) {
+            $collection = $collection->filter(static fn(Account $account): bool => str_contains(mb_strtolower((string) $account->name), mb_strtolower($query)));
         }
 
         $count    = $collection->count();
@@ -87,17 +93,41 @@ final class ListAccountsTool extends AbstractMcpTool
     public function schema(JsonSchema $schema): array
     {
         return [
-            'type'          => $schema
-                ->string()
-                ->description(
-                    'Account-type filter. Accepts a single enum value (e.g. "asset", "expense", "revenue", "liability") or a comma-separated list. Omit for all normal types.'
-                ),
-            'active'        => $schema->boolean()->description('When true, return only active accounts.'),
-            'page'          => $schema->integer()->description('Page number (1-based).'),
-            'limit'         => $schema->integer()->description("Items per page; defaults to the user's listPageSize preference."),
-            'verbose'       => $schema->boolean()->description('Return the raw JSON:API document instead of the reduced shape.'),
-            'include_nulls' => $schema->boolean()->description('Preserve null-valued attributes in the reduced output.')
+            'type'   => $schema->string()->description('asset, expense, revenue, liability, cash (comma-separated allowed). Default: all.'),
+            'query'  => $schema->string()->description('Name contains (case-insensitive).'),
+            'active' => $schema->boolean()->description('true = active accounts only.'),
+            ...$this->pagingSchema($schema),
+            ...$this->compactSchema($schema),
+            ...$this->outputFlagsSchema($schema)
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $jsonApiDocument
+     *
+     * @return array<string, mixed>
+     */
+    protected function shape(array $jsonApiDocument, Request $request): array
+    {
+        $reduced = parent::shape($jsonApiDocument, $request);
+        if (!(bool) $request->get('compact', true) || !is_array($reduced['data'] ?? null)) {
+            return $reduced;
+        }
+        $map             = [
+            'id'              => 'id',
+            'name'            => 'name',
+            'type'            => 'type',
+            'currency'        => 'currency_code',
+            'current_balance' => 'current_balance',
+            'active'          => 'active'
+        ];
+        $reduced['data'] = array_map(function (array $row) use ($map, $request): array {
+            $row['current_balance'] = TransactionProjector::trimAmount(null !== ($row['current_balance'] ?? null) ? (string) $row['current_balance'] : null);
+
+            return $this->pick($row, $map, $this->includeNulls($request));
+        }, $reduced['data']);
+
+        return $reduced;
     }
 
     /**
@@ -141,8 +171,12 @@ final class ListAccountsTool extends AbstractMcpTool
 
                 continue;
             }
-            // Treat unknown tokens as raw type strings (matches existing AccountFilter behavior).
-            $result[] = $part;
+            // Raw Firefly type strings (e.g. "Asset account") are accepted as-is; anything else is rejected.
+            $raw = array_values(array_filter(AccountTypeEnum::cases(), static fn(AccountTypeEnum $case): bool => mb_strtolower($case->value) === $key));
+            if ([] === $raw) {
+                InvalidArgument::fail('type', sprintf('Unknown account type "%s".', trim($part)), ['allowed' => array_keys($aliases)]);
+            }
+            $result[] = $raw[0]->value;
         }
 
         $result = array_values(array_unique($result));
