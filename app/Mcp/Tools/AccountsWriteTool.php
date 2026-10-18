@@ -35,7 +35,7 @@ use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Attributes\Description;
 use Laravel\Mcp\Server\Tools\Annotations\IsDestructive;
 
-#[Description('Create or update an account, or merge one into another of the same type (moves its transactions, then deletes it).')]
+#[Description('Create or update an account, or merge one into another of the same type (moves its transactions, then deletes it; confirm=true, else a preview).')]
 #[IsDestructive]
 final class AccountsWriteTool extends AbstractApiTool
 {
@@ -88,18 +88,16 @@ final class AccountsWriteTool extends AbstractApiTool
             ));
         }
 
-        $count = $from->transactions()->distinct()->count('transaction_journal_id');
-        $repository->destroy($from, $into);
-        $this->audit(['action' => $action, 'object' => 'account', 'id' => $from->id, 'into' => $into->id, 'transactions' => $count]);
-
-        return Response::text(sprintf(
-            'Merged account "%s" into "%s" (#%d): %d transactions moved, "%s" deleted.',
-            $from->name,
-            $into->name,
-            $into->id,
-            $count,
-            $from->name
-        ));
+        return $this->mergeEntity(
+            $request,
+            'account',
+            ['id' => $from->id, 'name' => $from->name],
+            ['id' => $into->id, 'name' => $into->name],
+            $from->transactions()->distinct()->count('transaction_journal_id'),
+            static function () use ($repository, $from, $into): void {
+                $repository->destroy($from, $into);
+            }
+        );
     }
 
     private function findAccount(AccountRepositoryInterface $repository, int $id): Account

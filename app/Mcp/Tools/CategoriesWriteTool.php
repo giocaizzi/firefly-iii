@@ -37,7 +37,7 @@ use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Attributes\Description;
 use Laravel\Mcp\Server\Tools\Annotations\IsDestructive;
 
-#[Description('Create or update (rename) a category, or merge one into another (moves its transactions, then deletes it).')]
+#[Description('Create or update (rename) a category, or merge one into another (moves its transactions, then deletes it; confirm=true, else a preview).')]
 #[IsDestructive]
 final class CategoriesWriteTool extends AbstractApiTool
 {
@@ -76,26 +76,24 @@ final class CategoriesWriteTool extends AbstractApiTool
         }
 
         // categories link to journals and, for split-level categories, to transactions
-        $count = DB::table('category_transaction_journal')->where('category_id', $from->id)->count();
-        DB::transaction(static function () use ($repository, $from, $into): void {
-            foreach (['category_transaction_journal' => 'transaction_journal_id', 'category_transaction' => 'transaction_id'] as $table => $column) {
-                $linked = DB::table($table)->where('category_id', $into->id)->pluck($column)->all();
-                DB::table($table)->where('category_id', $from->id)->whereIn($column, $linked)->delete();
-                DB::table($table)->where('category_id', $from->id)->update(['category_id' => $into->id]);
+        return $this->mergeEntity(
+            $request,
+            'category',
+            ['id' => $from->id, 'name' => $from->name],
+            ['id' => $into->id, 'name' => $into->name],
+            DB::table('category_transaction_journal')->where('category_id', $from->id)->count(),
+            static function () use ($repository, $from, $into): void {
+                DB::transaction(static function () use ($repository, $from, $into): void {
+                    foreach (['category_transaction_journal' => 'transaction_journal_id', 'category_transaction' => 'transaction_id'] as $table => $column) {
+                        $linked = DB::table($table)->where('category_id', $into->id)->pluck($column)->all();
+                        DB::table($table)->where('category_id', $from->id)->whereIn($column, $linked)->delete();
+                        DB::table($table)->where('category_id', $from->id)->update(['category_id' => $into->id]);
+                    }
+                    $repository->destroy($from);
+                });
+                Preferences::mark();
             }
-            $repository->destroy($from);
-        });
-        Preferences::mark();
-        $this->audit(['action' => $action, 'object' => 'category', 'id' => $from->id, 'into' => $into->id, 'transactions' => $count]);
-
-        return Response::text(sprintf(
-            'Merged category "%s" into "%s" (#%d): %d transactions moved, "%s" deleted.',
-            $from->name,
-            $into->name,
-            $into->id,
-            $count,
-            $from->name
-        ));
+        );
     }
 
     private function findCategory(CategoryRepositoryInterface $repository, int $id): Category

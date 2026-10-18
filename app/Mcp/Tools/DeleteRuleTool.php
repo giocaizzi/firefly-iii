@@ -78,7 +78,7 @@ final class DeleteRuleTool extends AbstractMcpTool
             'rule_id' => $ruleId
         ]);
 
-        return Response::text(sprintf('Deleted rule #%d.', $ruleId));
+        return Response::json(['deleted' => 'rule', 'id' => $ruleId]);
     }
 
     /**

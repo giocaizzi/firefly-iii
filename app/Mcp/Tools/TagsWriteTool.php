@@ -37,7 +37,7 @@ use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Attributes\Description;
 use Laravel\Mcp\Server\Tools\Annotations\IsDestructive;
 
-#[Description('Create, update (rename) or delete a tag, or merge one into another (moves its transactions, then deletes it).')]
+#[Description('Create, update (rename) or delete a tag, or merge one into another (moves its transactions, then deletes it; confirm=true, else a preview).')]
 #[IsDestructive]
 final class TagsWriteTool extends AbstractApiTool
 {
@@ -75,24 +75,22 @@ final class TagsWriteTool extends AbstractApiTool
             InvalidArgument::fail('into', 'into must be a different tag.');
         }
 
-        $count = count($repository->getJournalIds($from));
-        DB::transaction(static function () use ($repository, $from, $into): void {
-            $tagged = DB::table('tag_transaction_journal')->where('tag_id', $into->id)->pluck('transaction_journal_id')->all();
-            DB::table('tag_transaction_journal')->where('tag_id', $from->id)->whereIn('transaction_journal_id', $tagged)->delete();
-            DB::table('tag_transaction_journal')->where('tag_id', $from->id)->update(['tag_id' => $into->id]);
-            $repository->destroy($from);
-        });
-        Preferences::mark();
-        $this->audit(['action' => $action, 'object' => 'tag', 'id' => $from->id, 'into' => $into->id, 'transactions' => $count]);
-
-        return Response::text(sprintf(
-            'Merged tag "%s" into "%s" (#%d): %d transactions moved, "%s" deleted.',
-            $from->tag,
-            $into->tag,
-            $into->id,
-            $count,
-            $from->tag
-        ));
+        return $this->mergeEntity(
+            $request,
+            'tag',
+            ['id' => $from->id, 'name' => $from->tag],
+            ['id' => $into->id, 'name' => $into->tag],
+            count($repository->getJournalIds($from)),
+            static function () use ($repository, $from, $into): void {
+                DB::transaction(static function () use ($repository, $from, $into): void {
+                    $tagged = DB::table('tag_transaction_journal')->where('tag_id', $into->id)->pluck('transaction_journal_id')->all();
+                    DB::table('tag_transaction_journal')->where('tag_id', $from->id)->whereIn('transaction_journal_id', $tagged)->delete();
+                    DB::table('tag_transaction_journal')->where('tag_id', $from->id)->update(['tag_id' => $into->id]);
+                    $repository->destroy($from);
+                });
+                Preferences::mark();
+            }
+        );
     }
 
     private function findTag(TagRepositoryInterface $repository, string $idOrName): Tag

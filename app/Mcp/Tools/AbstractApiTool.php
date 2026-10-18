@@ -27,6 +27,7 @@ namespace FireflyIII\Mcp\Tools;
 use FireflyIII\Mcp\Support\ApiBridge;
 use FireflyIII\Mcp\Support\ApiFailure;
 use FireflyIII\Mcp\Support\InvalidArgument;
+use FireflyIII\Mcp\Support\LastChanged;
 use FireflyIII\Mcp\Support\TransactionProjector;
 use FireflyIII\Support\Facades\Amount;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
@@ -300,8 +301,12 @@ abstract class AbstractApiTool extends AbstractMcpTool
         if ((bool) $request->get('verbose', false)) {
             return Response::json($document);
         }
+        $document = LastChanged::apply($document);
         if (!(bool) $request->get('compact', true)) {
-            return Response::json($this->withPagingHints($this->reducer()->reduce($document, ['include_nulls' => $this->includeNulls($request)])));
+            return Response::json(self::fieldsIgnoredWarning(
+                $this->withPagingHints($this->reducer()->reduce($document, ['include_nulls' => $this->includeNulls($request)])),
+                $request
+            ));
         }
         $projected = new TransactionProjector()->project(
             $document,
@@ -356,7 +361,32 @@ abstract class AbstractApiTool extends AbstractMcpTool
         $this->api('DELETE', $path);
         $this->audit(['action' => $action, 'object' => $label, 'id' => $id]);
 
-        return Response::text(sprintf('Deleted %s %s.', $label, rawurldecode($id)));
+        return Response::json(['deleted' => $label, 'id' => ctype_digit($id) ? (int) $id : rawurldecode($id)]);
+    }
+
+    /**
+     * Merge $source into $into: with `confirm=true` run $write (it moves the transactions and deletes
+     * $source), otherwise return a preview and write nothing.
+     *
+     * @param array{id: int, name: string} $source
+     * @param array{id: int, name: string} $into
+     * @param callable(): void             $write
+     */
+    protected function mergeEntity(Request $request, string $label, array $source, array $into, int $moved, callable $write): Response
+    {
+        if (true !== $request->get('confirm')) {
+            return Response::json([
+                'preview'    => true,
+                'would_move' => $moved,
+                'source'     => $source,
+                'into'       => $into,
+                'message'    => sprintf('Nothing changed; pass confirm=true to move the transactions and delete %s "%s".', $label, $source['name'])
+            ]);
+        }
+        $write();
+        $this->audit(['action' => 'merge', 'object' => $label, 'id' => $source['id'], 'into' => $into['id'], 'transactions' => $moved]);
+
+        return Response::json(['merged' => $label, 'id' => $source['id'], 'into' => $into['id'], 'moved' => $moved]);
     }
 
     /**
@@ -368,7 +398,7 @@ abstract class AbstractApiTool extends AbstractMcpTool
     {
         return [
             'data'    => $schema->object()->description(sprintf('API fields: %s', $dataFields)),
-            'confirm' => $schema->boolean()->description('Confirm deleting with dependants.'),
+            'confirm' => $schema->boolean()->description('Confirm a merge, or deleting with dependants.'),
             ...$this->compactSchema($schema),
             ...$this->outputFlagsSchema($schema)
         ];

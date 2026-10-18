@@ -56,7 +56,7 @@ final class PiggyBanksWriteTool extends AbstractApiTool
             'amount'     => $schema->string()->description('add/remove: positive amount.'),
             ...$this->writeSchema(
                 $schema,
-                'name, accounts [{account_id, current_amount}], target_amount, start_date, target_date, transaction_currency_code, object_group_title, notes.'
+                'name, accounts [{account_id, current_amount}], target_amount, start_date (create: required), target_date, transaction_currency_code, object_group_title, notes.'
             )
         ];
     }

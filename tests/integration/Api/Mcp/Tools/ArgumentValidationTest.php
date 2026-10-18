@@ -26,6 +26,7 @@ namespace Tests\integration\Api\Mcp\Tools;
 
 use FireflyIII\Enums\AccountTypeEnum;
 use FireflyIII\Mcp\Tools\CreateWithdrawalTool;
+use FireflyIII\Mcp\Tools\ExportTransactionsTool;
 use FireflyIII\Mcp\Tools\ListAccountsTool;
 use FireflyIII\Mcp\Tools\ListTagsTool;
 use FireflyIII\Mcp\Tools\ListTransactionsTool;
@@ -92,11 +93,11 @@ final class ArgumentValidationTest extends TestCase
     }
 
     /**
-     * Output arguments are validated before the write, so a bad one never leaves a half-done call.
+     * Arguments outside a tool's schema are dropped before the tool runs and named in meta.warnings.
      *
-     * @covers \FireflyIII\Mcp\Tools\Concerns\ProjectsTransactions
+     * @covers \FireflyIII\Mcp\Servers\FireflyServer
      */
-    public function testGivenInvalidOutputArgumentWhenCreatingThenRejectsBeforeWriting(): void
+    public function testGivenUnsupportedArgumentWhenCreatingThenItIsIgnoredWithAWarning(): void
     {
         $user   = $this->createAuthenticatedUser();
         $source = $this->createAccount($user, AccountTypeEnum::ASSET, 'Checking');
@@ -111,8 +112,49 @@ final class ArgumentValidationTest extends TestCase
             'description_max'  => -5
         ]);
 
-        $response->assertHasErrors(['description_max']);
-        self::assertSame($before, TransactionJournal::count());
+        $response->assertHasNoErrors();
+        self::assertSame($before + 1, TransactionJournal::count());
+        $payload = json_decode($this->responseText($response), true, 512, JSON_THROW_ON_ERROR);
+        self::assertSame(['argument description_max is not supported by this tool and was ignored'], $payload['meta']['warnings']);
+    }
+
+    /**
+     * @covers \FireflyIII\Mcp\Servers\FireflyServer
+     */
+    public function testGivenUnsupportedArgumentOnAListThenWarns(): void
+    {
+        $user = $this->createAuthenticatedUser();
+        $this->createAccount($user, AccountTypeEnum::ASSET, 'Checking');
+
+        $payload = json_decode($this->responseText($this->invokeTool($user, ListAccountsTool::class, ['fields' => ['name'], 'sort' => 'name'])), true, 512, JSON_THROW_ON_ERROR);
+        self::assertSame([
+            'argument fields is not supported by this tool and was ignored',
+            'argument sort is not supported by this tool and was ignored',
+        ], $payload['meta']['warnings']);
+        self::assertSame('Checking', $payload['data'][0]['name']);
+    }
+
+    /**
+     * A plain-text result (CSV) gets the warning as a trailing text block, the CSV itself unchanged.
+     *
+     * @covers \FireflyIII\Mcp\Servers\FireflyServer
+     */
+    public function testGivenUnsupportedArgumentOnATextResultThenWarnsInASeparateBlock(): void
+    {
+        $user     = $this->createAuthenticatedUser();
+        $response = $this->invokeTool($user, ExportTransactionsTool::class, ['columns' => ['description'], 'format' => 'xlsx']);
+        $response->assertHasNoErrors()->assertSee('Warnings: argument format is not supported by this tool and was ignored.');
+        self::assertStringStartsWith('description', $this->responseText($response));
+    }
+
+    /**
+     * @covers \FireflyIII\Mcp\Tools\Concerns\ProjectsTransactions
+     */
+    public function testGivenFieldsWithCompactFalseThenWarns(): void
+    {
+        $user    = $this->createAuthenticatedUser();
+        $payload = json_decode($this->responseText($this->invokeTool($user, ListTransactionsTool::class, ['fields' => ['amount'], 'compact' => false])), true, 512, JSON_THROW_ON_ERROR);
+        self::assertSame(['fields applies to compact rows only and was ignored with compact=false'], $payload['meta']['warnings']);
     }
 
     /**

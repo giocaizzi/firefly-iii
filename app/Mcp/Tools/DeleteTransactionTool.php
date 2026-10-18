@@ -77,7 +77,7 @@ final class DeleteTransactionTool extends AbstractMcpTool
             'idempotent_replay' => false
         ]);
 
-        return Response::text(sprintf('Deleted transaction #%d.', $transactionId));
+        return Response::json(['deleted' => 'transaction', 'id' => $transactionId]);
     }
 
     /**

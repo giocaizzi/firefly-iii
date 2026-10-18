@@ -87,6 +87,7 @@ use FireflyIII\Mcp\Tools\PiggyBanksReadTool;
 use FireflyIII\Mcp\Tools\PiggyBanksWriteTool;
 use FireflyIII\Mcp\Tools\RecurrencesReadTool;
 use FireflyIII\Mcp\Tools\RecurrencesWriteTool;
+use FireflyIII\Mcp\Tools\RejectsUnknownArguments;
 use FireflyIII\Mcp\Tools\SearchTransactionsTool;
 use FireflyIII\Mcp\Tools\SummaryBasicTool;
 use FireflyIII\Mcp\Tools\TagsWriteTool;
@@ -105,7 +106,12 @@ use Laravel\Mcp\Server\Transport\HttpTransport;
 use Laravel\Mcp\Transport\JsonRpcRequest;
 use Laravel\Mcp\Transport\JsonRpcResponse;
 use Override;
+use stdClass;
+use Safe\Exceptions\JsonException;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
+
+use function Safe\json_decode;
+use function Safe\json_encode;
 
 /**
  * Single MCP server entrypoint for Firefly III.
@@ -231,7 +237,9 @@ final class FireflyServer extends Server
         Transaction rows: `id` is the transaction (group) id every tool accepts; `journal_id`
         appears only when it differs. Split groups are {group_id, title, splits}. Amounts are in the primary
         currency (`meta.primary_currency`) unless the row has `currency`. Invalid arguments
-        return {"error":"invalid_argument","field":..,"message":..}.
+        return {"error":"invalid_argument","field":..,"message":..}; unsupported arguments add `meta.warnings`.
+        A transaction's `updated_at` (via `fields`) is its last change, rule edits included; send it back as
+        `if_unmodified_since` to write only if nothing changed since. Merges need `confirm=true` (else a preview).
         Search syntax: resource firefly-iii://help/search.
         Tools come in two disjoint sets: everyday (default) and admin (`?toolset=admin`: budget, piggy bank, recurrence, currency, webhook management).
         MARKDOWN;
@@ -288,8 +296,10 @@ final class FireflyServer extends Server
     #[Override]
     protected function runMethodHandle(JsonRpcRequest $request, ServerContext $context): iterable|JsonRpcResponse
     {
+        $unsupported = 'tools/call' === $request->method ? $this->stripUnsupportedArguments($request, $context) : [];
+
         try {
-            return parent::runMethodHandle($request, $context);
+            $response = parent::runMethodHandle($request, $context);
         } catch (JsonRpcException $e) {
             $name = $request->get('name');
             if ('tools/call' !== $request->method || !in_array($name, $this->excludedToolNames(), true)) {
@@ -302,6 +312,63 @@ final class FireflyServer extends Server
 
             throw new JsonRpcException($message, -32602, $request->id);
         }
+
+        return [] !== $unsupported && $response instanceof JsonRpcResponse ? $this->withUnsupportedArgumentWarnings($unsupported, $response) : $response;
+    }
+
+    /**
+     * Drop the arguments the tool's schema does not declare, so the tool never acts on them.
+     *
+     * @return list<string> the dropped argument names
+     */
+    private function stripUnsupportedArguments(JsonRpcRequest $request, ServerContext $context): array
+    {
+        $arguments = $request->get('arguments');
+        $tool      = $context->tools()->first(static fn (Tool $tool): bool => $tool->name() === $request->get('name'));
+        if (!is_array($arguments) || [] === $arguments || !$tool instanceof Tool || $tool instanceof RejectsUnknownArguments) {
+            return [];
+        }
+        $properties = array_map(strval(...), array_keys((array) ($tool->toArray()['inputSchema']['properties'] ?? [])));
+        $unknown    = array_values(array_diff(array_map(strval(...), array_keys($arguments)), $properties));
+        if ([] !== $unknown) {
+            $request->params['arguments'] = array_diff_key($arguments, array_flip($unknown));
+        }
+
+        return $unknown;
+    }
+
+    /**
+     * Name the dropped arguments in `meta.warnings` of a JSON result (or a trailing text block for plain-text results).
+     *
+     * @param list<string> $unsupported
+     */
+    private function withUnsupportedArgumentWarnings(array $unsupported, JsonRpcResponse $response): JsonRpcResponse
+    {
+        $warnings = array_map(static fn (string $key): string => sprintf('argument %s is not supported by this tool and was ignored', $key), $unsupported);
+        $content  = $response->toArray();
+        unset($content['jsonrpc']);
+        $blocks   = $content['result']['content'] ?? null;
+        if (!is_array($blocks) || [] === $blocks) {
+            return $response;
+        }
+        $text     = $blocks[0]['text'] ?? null;
+        // decoded as objects so empty objects in the payload stay `{}`
+        try {
+            $payload = is_string($text) ? json_decode($text) : null;
+        } catch (JsonException) {
+            $payload = null;
+        }
+        if ($payload instanceof stdClass) {
+            $meta              = ($payload->meta ?? null) instanceof stdClass ? $payload->meta : new stdClass();
+            $meta->warnings    = [...(is_array($meta->warnings ?? null) ? $meta->warnings : []), ...$warnings];
+            $payload->meta     = $meta;
+            $blocks[0]['text'] = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        } else {
+            $blocks[]              = ['type' => 'text', 'text' => sprintf('Warnings: %s.', implode('; ', $warnings))];
+        }
+        $content['result']['content'] = $blocks;
+
+        return new JsonRpcResponse($content);
     }
 
     /**

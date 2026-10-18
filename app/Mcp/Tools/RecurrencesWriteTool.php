@@ -24,6 +24,7 @@ declare(strict_types=1);
 
 namespace FireflyIII\Mcp\Tools;
 
+use Carbon\Carbon;
 use FireflyIII\Mcp\Support\InvalidArgument;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Laravel\Mcp\Request;
@@ -70,7 +71,30 @@ final class RecurrencesWriteTool extends AbstractApiTool
         }
         $document = $this->api('POST', sprintf('recurrences/%s/trigger', $id), ['date' => $date->format('Y-m-d')]);
         $this->audit(['action' => $action, 'object' => 'recurring transaction', 'id' => $id, 'date' => $date->format('Y-m-d')]);
+        if ([] === ($document['data'] ?? [])) {
+            return Response::json(['created' => 0, 'reason' => $this->notTriggeredReason($id, $date)]);
+        }
 
         return $this->respondTransactions($document, $request);
+    }
+
+    /**
+     * Why triggering created nothing, from the checks the recurring-transactions job makes.
+     */
+    private function notTriggeredReason(string $id, Carbon $date): string
+    {
+        $attributes = $this->api('GET', sprintf('recurrences/%s', $id))['data']['attributes'] ?? [];
+        $firstDate  = is_string($attributes['first_date'] ?? null) ? Carbon::parse($attributes['first_date'])->startOfDay() : null;
+        $until      = is_string($attributes['repeat_until'] ?? null) ? Carbon::parse($attributes['repeat_until'])->startOfDay() : null;
+
+        return match (true) {
+            false === ($attributes['active'] ?? true)                => 'the recurring transaction is inactive',
+            null !== $firstDate && $date->lt($firstDate)             => sprintf('date is before first_date (%s)', $firstDate->format('Y-m-d')),
+            null !== $until && $date->gt($until)                     => sprintf('date is after repeat_until (%s)', $until->format('Y-m-d')),
+            default                                                  => sprintf(
+                '%s is not one of its occurrences, a transaction already exists for it, it already fired today, or it reached nr_of_repetitions',
+                $date->format('Y-m-d')
+            )
+        };
     }
 }

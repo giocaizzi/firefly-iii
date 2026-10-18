@@ -34,7 +34,7 @@ use Laravel\Mcp\Server\Tools\Annotations\IsReadOnly;
 use SplFileObject;
 use SplTempFileObject;
 
-#[Description('Export transactions as CSV (Firefly\'s own export), optionally only some columns; output is capped and says when it was cut.')]
+#[Description('Export transactions as CSV (Firefly\'s own export), optionally only some columns; output is capped and says when it was cut. Values may start with \' (spreadsheet formula guard).')]
 #[IsReadOnly]
 #[IsIdempotent]
 final class ExportTransactionsTool extends AbstractApiTool
@@ -52,7 +52,7 @@ final class ExportTransactionsTool extends AbstractApiTool
             'start'     => $schema->string()->description('YYYY-MM-DD, default a year ago.'),
             'end'       => $schema->string()->description('YYYY-MM-DD, default today.'),
             'accounts'  => $schema->array()->items($schema->integer())->description('Asset account ids, default all.'),
-            'columns'   => $schema->array()->items($schema->string())->description('CSV columns to keep, in this order; default all.'),
+            'columns'   => $schema->array()->items($schema->string())->description('CSV columns to keep, in this order (e.g. date, description, amount, category); default all.'),
             'max_bytes' => $schema->integer()->description(sprintf('Output cap, default %d, max %d.', self::DEFAULT_MAX_BYTES, self::MAX_BYTES))
         ];
     }

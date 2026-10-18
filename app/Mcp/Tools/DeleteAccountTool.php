@@ -109,11 +109,12 @@ final class DeleteAccountTool extends AbstractMcpTool
             'move_to_account_id' => $moveTo instanceof Account ? $moveTo->id : null
         ]);
 
-        $message = $moveTo instanceof Account
-            ? sprintf('Deleted account #%d; its transactions were moved to account #%d.', $accountId, $moveTo->id)
-            : sprintf('Deleted account #%d.', $accountId);
+        $result = ['deleted' => 'account', 'id' => $accountId];
+        if ($moveTo instanceof Account) {
+            $result['moved_to'] = $moveTo->id;
+        }
 
-        return Response::text($message);
+        return Response::json($result);
     }
 
     /**
