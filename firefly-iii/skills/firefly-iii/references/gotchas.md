@@ -7,6 +7,7 @@ Edge cases and known quirks. Skim once; come back when something behaves unexpec
 - **Currency is inherited from the source account on every create-*.** There is no `currency_code` arg. The server uses the asset (or revenue) account's currency. This is intentional — it removes a category of "I accidentally created a USD txn on my EUR account" mistakes.
 - **Cross-currency transfers are explicitly rejected.** `create-transfer` errors when source and destination accounts have different currencies. The MCP MVP doesn't support the exchange-rate side of the conversation; cross-currency belongs in the Firefly web UI.
 - **Aggregate tools emit per-row currency.** `insight-expense`, `insight-income`, and `chart-data` rows each carry their own `currency_code`. Don't sum across currencies blindly — group by currency first or surface the multi-currency case to the user.
+- **`aggregate` and tag `stats` sums are per currency and positive.** Each `totals` row is `{currency, count, withdrawal, deposit, transfer?, <other type>?, net}`: every type sum is a positive magnitude in the transaction's own currency (foreign amounts are not converted), `net` = deposit − withdrawal, transfers are not in `net`.
 
 ## Dates
 
@@ -45,7 +46,9 @@ Edge cases and known quirks. Skim once; come back when something behaves unexpec
 - Default page size is 25, maximum 200. `limit` above 200, `page`/`limit` below 1, unknown enum values (e.g. `type=zzz`) and malformed dates are rejected with `{"error":"invalid_argument","field":..,"message":..}` — never silently coerced.
 - `meta.pagination` is preserved verbatim. To page forward: when `meta.has_more` is true, refetch with `page=<meta.next_page>`.
 - `search-transactions` ignores unknown or malformed operators and lists them in `meta.warnings`; check it before concluding there are no matches.
-- Don't iterate every page when an aggregate tool would answer the question — see [recipes.md](recipes.md).
+- Don't iterate every page when an aggregate tool would answer the question — see [recipes.md](recipes.md). `aggregate: true` sums every match, not just the returned page.
+- `include_categories` / `exclude_categories` filter the aggregate only; to filter the rows, use query operators (`category_is:`, `-category_is:`).
+- `group_by: tag` counts a transaction once in each of its tags, so tag groups can add up to more than the total. Uncategorized / untagged rows fall in the `(none)` group.
 
 ## Bulk-create semantics
 
@@ -59,6 +62,13 @@ Edge cases and known quirks. Skim once; come back when something behaves unexpec
 - `summary-basic`, `insight-*`, and `chart-data` return `{ data: ..., meta: { ... } }` envelopes **directly** — NOT through the standard JsonApiReducer pipeline.
 - `verbose: true` has no effect on aggregate tools (no JSON:API to fall back to); `include_nulls: true` keeps null values.
 - Don't expect `meta.pagination` on aggregates — they're not paginated.
+
+## Rules
+
+- Rule triggers are search operators (`firefly-iii://help/search`); a `-` prefix on the type, or `prohibited: true`, negates one. `strict: true` = all triggers must match, `false` (default) = any.
+- `create-rule` / `update-rule` reject unknown trigger or action types, missing values for operators and actions that need one, and rules without an active trigger and action.
+- `apply-rule` needs a scope (`start`, `end`, `transaction_ids` or `account_ids`) and returns `affected` = transactions it changed. A rule group runs its active rules in order, each on its own: `stop_processing` does not stop the group here (same as the REST API and the web UI's "execute").
+- Firefly stores source/destination account changes without `before`; `get-audit-log` fills it from the previous change of the same field on the same transaction and marks it `before_inferred: true`. The first such change stays `null`.
 
 ## Feature flags
 
@@ -81,7 +91,6 @@ The README in places references `currency_code` on create-* — **it is not in t
 
 The MVP doesn't expose:
 - `create-budget`, `create-category`, `create-piggy-bank` (and their update/delete variants)
-- Rule-management write tools
 - User / admin operations
 - OAuth client management
 

@@ -50,11 +50,15 @@ final class ServerManifestTest extends TestCase
      * reviewable act — adding or removing a tool must update this list.
      */
     private const array EXPECTED_TOOLS = [
+        'account-balance-tool',
+        'apply-rule-tool',
         'bulk-create-transactions-tool',
         'chart-data-tool',
         'classify-transactions-tool',
         'convert-transaction-tool',
         'create-deposit-tool',
+        'create-rule-group-tool',
+        'create-rule-tool',
         'create-transfer-tool',
         'create-withdrawal-tool',
         'delete-account-tool',
@@ -83,6 +87,8 @@ final class ServerManifestTest extends TestCase
         'list-webhooks-tool',
         'search-transactions-tool',
         'summary-basic-tool',
+        'test-rule-tool',
+        'update-rule-group-tool',
         'update-rule-tool',
         'update-transaction-tool'
     ];

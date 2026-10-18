@@ -24,6 +24,7 @@ declare(strict_types=1);
 
 namespace FireflyIII\Mcp\Tools;
 
+use FireflyIII\Mcp\Tools\Concerns\AddsTagStats;
 use FireflyIII\Repositories\Tag\TagRepositoryInterface;
 use FireflyIII\Transformers\TagTransformer;
 use FireflyIII\User;
@@ -42,6 +43,8 @@ use League\Fractal\Resource\Collection as FractalCollection;
 #[IsIdempotent]
 final class ListTagsTool extends AbstractMcpTool
 {
+    use AddsTagStats;
+
     public function handle(Request $request): Response
     {
         /** @var User $user */
@@ -62,7 +65,7 @@ final class ListTagsTool extends AbstractMcpTool
         $resource    = new FractalCollection($tags, $transformer, 'tags');
         $resource->setPaginator(new IlluminatePaginatorAdapter($paginator));
 
-        $document = $this->jsonApiManager()->createData($resource)->toArray();
+        $document = $this->withTagStats($this->jsonApiManager()->createData($resource)->toArray(), $user, $request);
 
         return $this->respondJsonApi($document, $request);
     }
@@ -74,6 +77,7 @@ final class ListTagsTool extends AbstractMcpTool
     {
         return [
             ...$this->pagingSchema($schema),
+            ...$this->tagStatsSchema($schema),
             ...$this->outputFlagsSchema($schema)
         ];
     }

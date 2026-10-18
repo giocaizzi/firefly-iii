@@ -80,7 +80,7 @@ final class GetAuditLogTool extends AbstractMcpTool
             $entries = $entries->concat($journalEntries);
         }
 
-        $sorted = $entries->sortBy('created_at')->values()->all();
+        $sorted = $this->inferAccountBefore($entries->sortBy('created_at')->values()->all());
 
         return Response::json([
             'transaction_id' => $transactionId,
@@ -97,6 +97,33 @@ final class GetAuditLogTool extends AbstractMcpTool
         return [
             'transaction_id' => $schema->integer()->required()->description('Transaction id (a row\'s id or group_id).')
         ];
+    }
+
+    /**
+     * Older set_source / set_destination entries were stored without `before`. Fill it from the
+     * previous change of the same field on the same journal (marked `before_inferred`); the
+     * first such entry stays null because nothing earlier was recorded.
+     *
+     * @param list<array<string, mixed>> $entries oldest first
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function inferAccountBefore(array $entries): array
+    {
+        $last = [];
+        foreach ($entries as $index => $entry) {
+            if (!in_array($entry['action'], ['set_source', 'set_destination'], true)) {
+                continue;
+            }
+            $key = sprintf('%s|%s', $entry['journal_id'] ?? 'group', $entry['action']);
+            if (null === $entry['before'] && array_key_exists($key, $last)) {
+                $entries[$index]['before']          = $last[$key];
+                $entries[$index]['before_inferred'] = true;
+            }
+            $last[$key] = $entry['after'];
+        }
+
+        return $entries;
     }
 
     /**
