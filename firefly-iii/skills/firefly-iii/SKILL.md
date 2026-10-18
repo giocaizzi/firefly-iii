@@ -1,6 +1,6 @@
 ---
 name: firefly-iii
-description: Use this skill whenever the user asks anything about their personal finances, money, spending, income, account balances, budgets, categories, savings goals, recurring bills, transaction history, or financial reports — even if they don't say "Firefly" by name. Phrases like "how much did I spend on...", "what's my balance", "log a transaction", "how am I doing this month", "show me my expenses", "did the rent come out", "categorize these", "set up a budget" all trigger this skill. The skill teaches the assistant how to drive the Firefly III MCP server (25 tools + 8 resources) to answer finance questions and make changes. Use this skill BEFORE making generic suggestions or guessing — Firefly is the user's source of truth for personal finance data.
+description: Use this skill whenever the user asks anything about their personal finances, money, spending, income, account balances, budgets, categories, savings goals, recurring bills, transaction history, or financial reports — even if they don't say "Firefly" by name. Phrases like "how much did I spend on...", "what's my balance", "log a transaction", "how am I doing this month", "show me my expenses", "did the rent come out", "categorize these", "set up a budget" all trigger this skill. The skill teaches the assistant how to drive the Firefly III MCP server (33 tools + 9 resources) to answer finance questions and make changes. Use this skill BEFORE making generic suggestions or guessing — Firefly is the user's source of truth for personal finance data.
 ---
 
 # Firefly III — operating the MCP endpoint
@@ -15,20 +15,25 @@ Five categories. Knowing the shape helps you pick the right tool fast.
 |---|---|---|
 | **Read — core entities** | `list-accounts`, `get-account`, `list-transactions`, `get-transaction`, `list-budgets`, `get-budget`, `list-categories`, `get-category`, `list-tags`, `get-tag` | Direct lookups: "what accounts do I have", "show that transaction from yesterday", "list my categories" |
 | **Read — search** | `search-transactions` | Free-text or operator search: "find that Amazon refund", "transactions with note 'tax 2025'" |
-| **Read — power-user** | `list-bills`, `list-rules`, `list-piggy-banks`, `list-webhooks` | Recurring bills, transaction rules, savings targets, integrations |
+| **Read — power-user** | `list-bills`, `list-rules`, `get-rule`, `list-rule-groups`, `list-piggy-banks`, `list-webhooks`, `get-audit-log` | Recurring bills, transaction rules, savings targets, integrations |
 | **Read — aggregates** | `summary-basic`, `insight-expense`, `insight-income`, `chart-data` | "How am I doing this month", "spending by category", "balance over time" — **prefer these over computing aggregates yourself** from `list-transactions` |
 | **Write** | `create-withdrawal`, `create-deposit`, `create-transfer`, `update-transaction`, `delete-transaction`, `bulk-create-transactions` | Logging new transactions, fixing categorization, removing duplicates, importing batches |
 
 Resources (under URI scheme `firefly-iii://`) give grounding data without API churn:
 
 - `firefly-iii://catalogs/{currencies,account-types,transaction-types,link-types}` — enums
-- `firefly-iii://user/{accounts,tags,categories,budgets}` — user's reference data
+- `firefly-iii://user/{accounts,tags,categories,budgets}` — user's reference data (`firefly-iii://user/accounts?page=1&limit=25&type=asset&query=text` pages and filters accounts)
+- `firefly-iii://help/search` — search syntax, examples and the full operator list
 
 Read a resource once at the start of a session when you'll be doing multiple operations that need account/category/budget names — it's cheaper than calling `list-*` repeatedly.
 
 ## Response shape
 
-Every tool returns a reduced JSON envelope: flat objects with `id` + attributes, relationships hoisted as `*_id` keys, pagination preserved in `meta.pagination`. Null attributes are dropped by default. If you need the raw JSON:API document, pass `verbose: true`. If you specifically need null-valued fields, pass `include_nulls: true`. **Use these flags sparingly** — the reduced shape is what's tuned for you.
+Transactions, accounts, rules and rule groups return **compact rows** by default; other tools return the reduced envelope (flat objects with `id` + attributes, relationships hoisted as `*_id` keys). Null and empty values are dropped everywhere. Lists keep `meta.pagination` and add `meta.has_more` / `meta.next_page`.
+
+A compact transaction row is `{id, group_id?, date, type, amount, currency?, foreign_amount?, foreign_currency?, description, source, destination, category?, budget?, bill?, tags?, notes?}`: `id` is the journal id, `group_id` appears only when it differs (tools that take a transaction id want the group id), `currency` only when it differs from `meta.primary_currency`, and descriptions are capped at 120 chars (`description_max`, 0 = no cap). Split groups come back as `{group_id, title, splits: [rows]}`. Pick columns with `fields` (compact keys or raw split keys such as `source_id`, `internal_reference`).
+
+Escape hatches: `compact: false` returns every attribute in the reduced shape, `verbose: true` the raw JSON:API document, `include_nulls: true` keeps null fields. **Use them sparingly** — the compact shape is what's tuned for you.
 
 ## Picking the right tool — decision rules
 

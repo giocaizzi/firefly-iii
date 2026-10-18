@@ -16,4 +16,4 @@
 
 ## MCP endpoint for AI agents
 
-Firefly III exposes a [Model Context Protocol](https://modelcontextprotocol.io/) endpoint at `/api/v1/mcp`, letting AI agents read and write your data using the same Personal Access Tokens that authenticate the REST API. The endpoint ships 25 tools (read, search, aggregate, and write) and 8 resources (static catalogs and user snapshots), gated by the `allow_mcp` feature flag (default ON). See the [client plugin README](../firefly-iii/README.md) for setup, the full tool list, and known MVP limitations.
+Firefly III exposes a [Model Context Protocol](https://modelcontextprotocol.io/) endpoint at `/api/v1/mcp`, letting AI agents read and write your data using the same Personal Access Tokens that authenticate the REST API. The endpoint ships 33 tools (read, search, aggregate, and write) and 9 resources plus one resource template (static catalogs, user snapshots, and a search-syntax help page), gated by the `allow_mcp` feature flag (default ON). See the [client plugin README](../firefly-iii/README.md) for setup, the full tool list, and known MVP limitations.

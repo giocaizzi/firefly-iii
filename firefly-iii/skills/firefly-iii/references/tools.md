@@ -7,15 +7,24 @@ Full per-tool schemas with every argument. Tool names are auto-derived from clas
 In addition to the per-tool args below, every read tool accepts:
 
 - `verbose: bool` (default `false`) — when `true`, returns the raw JSON:API document instead of the reduced envelope. Use sparingly.
-- `include_nulls: bool` (default `false`) — when `true`, preserves null-valued attributes. Useful when presence-vs-absence matters (audits, compliance).
-- `page: int`, `limit: int` (where the underlying endpoint paginates) — Firefly's defaults apply when omitted.
+- `include_nulls: bool` (default `false`) — when `true`, preserves null and empty values. Useful when presence-vs-absence matters (audits, compliance).
+- `page: int` (from 1), `limit: int` (1-200, default 25) where the tool paginates. Lists add `meta.has_more` and `meta.next_page`.
+
+Tools with a compact default row (transactions, `list-accounts`, `list-rules`, `list-rule-groups`) also accept `compact: bool` (default `true`; `false` returns every attribute in the reduced shape). Transaction read tools (`list-transactions`, `search-transactions`, `get-transaction`) further accept:
+
+- `fields?: string[]` — keep only these row keys (compact keys or raw split keys such as `source_id`, `iban`, `internal_reference`); `id` is always kept
+- `description_max?: int` — description cap, default 120, `0` = no cap
+
+Invalid arguments return `{"error":"invalid_argument","field":..,"message":..}`.
 
 ## Read — core entity tools
 
 ### `list-accounts`
-- `type?: string` — `asset` | `expense` | `revenue` | `liability` | `cash`, or comma-separated raw `AccountTypeEnum` values
+- `type?: string` — `asset` | `expense` | `revenue` | `liability` | `cash`, or comma-separated raw `AccountTypeEnum` values; anything else is rejected
+- `query?: string` — name contains (case-insensitive)
 - `active?: bool`
 - `page?: int`, `limit?: int`
+- Compact row: `{ id, name, type, currency, current_balance, active }`
 
 ### `get-account`
 - One of `id?: int` or `name?: string` required
@@ -25,9 +34,10 @@ In addition to the per-tool args below, every read tool accepts:
 - `account_id?: int` or `account_name?: string`
 - `type?: enum` ∈ `{withdrawal, deposit, transfer, opening_balance, reconciliation, all, default}`
 - `page?: int`, `limit?: int`
+- An unknown `account_name` / `account_id` is an error (it no longer silently lists everything)
 
 ### `get-transaction`
-- `id: int` (required)
+- `id: int` (required) — the group id (a row's `group_id`, else its `id`)
 
 ### `list-budgets`
 - `active?: bool`
@@ -48,15 +58,31 @@ In addition to the per-tool args below, every read tool accepts:
 ## Read — search
 
 ### `search-transactions`
-- `query: string` (required) — supports Firefly's search-operator grammar (`amount_gt:`, `date_after:`, `category_is:`, etc.)
+- `query: string` (required) — Firefly's search-operator grammar (`amount_more:`, `date_after:`, `category_is:`, etc.); full syntax and operator list in the `firefly-iii://help/search` resource. Unknown operators are listed in `meta.warnings`.
 - `start?: date`, `end?: date` — folded into the query as `date_after:` / `date_before:` if not already present
 - `page?: int`, `limit?: int`
 
 ## Read — power-user
 
-### `list-bills`, `list-rules`
+### `list-bills`
 - `active?: bool`
 - `page?: int`, `limit?: int`
+
+### `list-rules`
+- `query?: string` — title contains (case-insensitive)
+- `group_id?: int`
+- `active?: bool`
+- `page?: int`, `limit?: int`
+- Compact row: `{ id, group_id, group, title, active, strict, order, trigger_count, action_count }`
+
+### `get-rule`
+- `rule_id: int` (required) — full rule with `triggers` and `actions`
+
+### `list-rule-groups`
+- `page?: int`, `limit?: int`
+- Compact row: `{ id, title, description?, active, order }`
+
+Rule titles and descriptions come back HTML-decoded (`&` rather than `&amp;`); `verbose: true` keeps the stored value.
 
 ### `list-piggy-banks`, `list-webhooks`
 - `page?: int`, `limit?: int`
@@ -127,7 +153,9 @@ Returns a plain-text confirmation. Marked `IsDestructive` (NOT idempotent — a 
   - Each item: `type: enum` ∈ `{withdrawal, deposit, transfer}` + the full create-* spec
   - Each item may carry its own `idempotency_key`
 - All-or-nothing inside a single DB transaction. Any validation failure aborts; zero inserts.
-- Response: `{ data: { created, replayed, total, transactions: [{ index, replayed, document }] } }`
+- Response: `{ data: { created, replayed, total, transactions: [{ index, replayed, transaction }] }, meta: { primary_currency } }` with a compact row per item; `verbose: true` returns `[{ index, replayed, document }]` with the raw JSON:API document per item.
+
+Every transaction write tool echoes the compact row (`compact: false` / `verbose: true` for the full shapes).
 
 ## Resources
 
@@ -137,7 +165,7 @@ All resources reduce to flat arrays. Read once per session; cache; don't refetch
 
 | URI | Output shape |
 |---|---|
-| `firefly-iii://catalogs/currencies` | `[{ code, name, symbol, decimal_places, default }]` |
+| `firefly-iii://catalogs/currencies` | `[{ code, name, symbol, decimal_places, enabled, primary }]` — all currencies; `enabled` / `primary` are per user group |
 | `firefly-iii://catalogs/account-types` | `[{ type }]` |
 | `firefly-iii://catalogs/transaction-types` | `[{ type }]` |
 | `firefly-iii://catalogs/link-types` | `[{ id, name, inward, outward, editable }]` |
@@ -146,7 +174,14 @@ All resources reduce to flat arrays. Read once per session; cache; don't refetch
 
 | URI | Output shape |
 |---|---|
-| `firefly-iii://user/accounts` | `[{ id, name, type, currency_code, current_balance, active }]` |
+| `firefly-iii://user/accounts` | `[{ id, name, type, currency_code, current_balance, active }]` (unpaged) |
+| `firefly-iii://user/accounts?page=1&limit=25&type=asset&query=text` | same rows, paged and filtered; `type` ∈ asset, expense, revenue, liability |
 | `firefly-iii://user/tags` | `[{ id, tag, description }]` |
 | `firefly-iii://user/categories` | `[{ id, name }]` |
 | `firefly-iii://user/budgets` | `[{ id, name, active, auto_budget_amount?, auto_budget_period? }]` |
+
+### Help
+
+| URI | Content |
+|---|---|
+| `firefly-iii://help/search` | Markdown: search syntax, examples, every operator the parser accepts |
