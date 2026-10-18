@@ -35,7 +35,7 @@ use Laravel\Mcp\Server\Tools\Annotations\IsIdempotent;
 use Laravel\Mcp\Server\Tools\Annotations\IsReadOnly;
 use League\Fractal\Resource\Item;
 
-#[Description('Get a single tag by id or tag string. Provide either `id` or `tag`; `id` wins when both are supplied.')]
+#[Description('Get a tag by id or tag string.')]
 #[IsReadOnly]
 #[IsIdempotent]
 final class GetTagTool extends AbstractMcpTool
@@ -75,10 +75,9 @@ final class GetTagTool extends AbstractMcpTool
     public function schema(JsonSchema $schema): array
     {
         return [
-            'id'            => $schema->integer()->description('Tag id. Wins over `tag` when both are supplied.'),
-            'tag'           => $schema->string()->description('Exact tag string; used when `id` is omitted.'),
-            'verbose'       => $schema->boolean()->description('Return the raw JSON:API document instead of the reduced shape.'),
-            'include_nulls' => $schema->boolean()->description('Preserve null-valued attributes in the reduced output.')
+            'id'  => $schema->integer()->description('Tag id (wins over tag).'),
+            'tag' => $schema->string()->description('Exact tag.'),
+            ...$this->outputFlagsSchema($schema)
         ];
     }
 }

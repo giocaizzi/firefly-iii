@@ -25,6 +25,7 @@ declare(strict_types=1);
 namespace FireflyIII\Mcp\Tools;
 
 use FireflyIII\Api\V1\Requests\Models\Transaction\StoreRequest;
+use FireflyIII\Mcp\Tools\Concerns\ProjectsTransactions;
 use FireflyIII\Mcp\Tools\Concerns\WritesTransactions;
 use FireflyIII\Repositories\TransactionGroup\TransactionGroupRepositoryInterface;
 use FireflyIII\User;
@@ -49,16 +50,18 @@ use function Safe\json_encode;
  * Audit log: one `info` line per successful or replayed item plus one summary line
  * at the end with totals. Failures are logged at `error` with the offending index.
  */
-#[Description('Create up to 100 transactions atomically. Each item is a withdrawal, deposit, or transfer.')]
+#[Description('Create up to 100 withdrawals/deposits/transfers atomically.')]
 #[IsDestructive(false)]
 final class BulkCreateTransactionsTool extends AbstractMcpTool
 {
+    use ProjectsTransactions;
     use WritesTransactions;
 
     public const int MAX_ITEMS = 100;
 
     public function handle(Request $request): Response
     {
+        $this->validateShapeArgs($request);
         $items = $request->get('transactions');
         if (!is_array($items) || [] === $items) {
             return Response::error('transactions must be a non-empty array.');
@@ -181,14 +184,29 @@ final class BulkCreateTransactionsTool extends AbstractMcpTool
             'replayed' => $replayed
         ]);
 
-        return Response::json([
+        $result = [
             'data' => [
                 'created'      => $created,
                 'replayed'     => $replayed,
                 'total'        => count($preparedItems),
                 'transactions' => $documents
             ]
-        ]);
+        ];
+        if (!(bool) $request->get('verbose', false)) {
+            $meta  = [];
+            $items = [];
+            foreach ($documents as $entry) {
+                $shaped  = $this->shape($entry['document'], $request);
+                $meta    = $shaped['meta'] ?? $meta;
+                $items[] = ['index' => $entry['index'], 'replayed' => $entry['replayed'], 'transaction' => $shaped['data'] ?? null];
+            }
+            $result['data']['transactions'] = $items;
+            if ([] !== $meta) {
+                $result['meta'] = $meta;
+            }
+        }
+
+        return Response::json($result);
     }
 
     /**
@@ -197,36 +215,32 @@ final class BulkCreateTransactionsTool extends AbstractMcpTool
     public function schema(JsonSchema $schema): array
     {
         $item = $schema->object([
-            'type'             => $schema->string()->enum(['withdrawal', 'deposit', 'transfer'])->required()->description('Transaction type for this item.'),
+            'type'             => $schema->string()->enum(['withdrawal', 'deposit', 'transfer'])->required()->description('Type.'),
             'source_id'        => $schema->integer()->description('Source account id.'),
             'source_name'      => $schema->string()->description('Source account name.'),
             'destination_id'   => $schema->integer()->description('Destination account id.'),
             'destination_name' => $schema->string()->description('Destination account name.'),
-            'amount'           => $schema->string()->required()->description('Positive decimal amount as a string.'),
-            'date'             => $schema->string()->required()->description('ISO-8601 date/time.'),
-            'description'      => $schema->string()->required()->description('Description (1-1000 chars).'),
+            'amount'           => $schema->string()->required()->description('Positive decimal string.'),
+            'date'             => $schema->string()->required()->description('YYYY-MM-DD or ISO 8601 date-time.'),
+            'description'      => $schema->string()->required()->description('1-1000 chars.'),
             'category_id'      => $schema->integer()->description('Category id.'),
             'category_name'    => $schema->string()->description('Category name.'),
             'budget_id'        => $schema->integer()->description('Budget id (withdrawals only).'),
             'budget_name'      => $schema->string()->description('Budget name.'),
             'tags'             => $schema->array()->items($schema->string())->description('Tag ids or names.'),
-            'notes'            => $schema->string()->description('Free-form notes.'),
-            'idempotency_key'  => $schema
-                ->string()
-                ->max(self::MAX_IDEMPOTENCY_KEY_LENGTH)
-                ->description('Printable-ASCII key (max 128 chars) for replay deduplication.')
+            'notes'            => $schema->string()->description('Notes.'),
+            'idempotency_key'  => $schema->string()->max(self::MAX_IDEMPOTENCY_KEY_LENGTH)->description('Retry dedup key (printable ASCII, max 128).')
         ]);
 
         return [
-            'transactions'  => $schema
+            'transactions' => $schema
                 ->array()
                 ->items($item)
                 ->min(1)
                 ->max(self::MAX_ITEMS)
                 ->required()
-                ->description(sprintf('Array of transaction items (1 to %d). The whole batch is rolled back if any item fails.', self::MAX_ITEMS)),
-            'verbose'       => $schema->boolean()->description('Return the full JSON:API document per item instead of the reduced shape.'),
-            'include_nulls' => $schema->boolean()->description('Keep null attribute values in the reduced shape.')
+                ->description(sprintf('1-%d items; any failure rolls back the batch.', self::MAX_ITEMS)),
+            ...$this->writeOutputSchema($schema)
         ];
     }
 

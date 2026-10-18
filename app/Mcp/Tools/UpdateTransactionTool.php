@@ -25,6 +25,7 @@ declare(strict_types=1);
 namespace FireflyIII\Mcp\Tools;
 
 use FireflyIII\Api\V1\Requests\Models\Transaction\UpdateRequest;
+use FireflyIII\Mcp\Tools\Concerns\ProjectsTransactions;
 use FireflyIII\Mcp\Tools\Concerns\WritesTransactions;
 use FireflyIII\Models\TransactionGroup;
 use FireflyIII\Repositories\TransactionGroup\TransactionGroupRepositoryInterface;
@@ -44,15 +45,17 @@ use Throwable;
  * Only the fields provided in the request are updated; omitted fields remain
  * untouched. Annotated as `IsDestructive` and `IsIdempotent`.
  */
-#[Description('Update an existing transaction. Only fields you pass are changed; others are left alone.')]
+#[Description('Update a transaction; only passed fields change.')]
 #[IsDestructive]
 #[IsIdempotent]
 final class UpdateTransactionTool extends AbstractMcpTool
 {
+    use ProjectsTransactions;
     use WritesTransactions;
 
     public function handle(Request $request): Response
     {
+        $this->validateShapeArgs($request);
         $input         = $request->toArray();
         $transactionId = array_key_exists('transaction_id', $input) ? (int) $input['transaction_id'] : 0;
         if ($transactionId <= 0) {
@@ -106,22 +109,21 @@ final class UpdateTransactionTool extends AbstractMcpTool
     public function schema(JsonSchema $schema): array
     {
         return [
-            'transaction_id'   => $schema->integer()->required()->description('Numeric ID of the transaction group to update.'),
-            'amount'           => $schema->string()->description('New positive decimal amount.'),
-            'date'             => $schema->string()->description('New ISO-8601 date/time.'),
-            'description'      => $schema->string()->description('New description (1-1000 chars).'),
+            'transaction_id'   => $schema->integer()->required()->description('Transaction id (a row\'s id or group_id).'),
+            'amount'           => $schema->string()->description('Positive decimal string.'),
+            'date'             => $schema->string()->description('YYYY-MM-DD or ISO 8601 date-time.'),
+            'description'      => $schema->string()->description('1-1000 chars.'),
             'source_id'        => $schema->integer()->description('New source account id.'),
             'source_name'      => $schema->string()->description('New source account name.'),
             'destination_id'   => $schema->integer()->description('New destination account id.'),
             'destination_name' => $schema->string()->description('New destination account name.'),
-            'category_id'      => $schema->integer()->description('Category id; pass 0 or omit to leave unchanged.'),
+            'category_id'      => $schema->integer()->description('Category id (0 or omit = unchanged).'),
             'category_name'    => $schema->string()->description('Category name.'),
-            'budget_id'        => $schema->integer()->description('Budget id (only meaningful on withdrawals).'),
+            'budget_id'        => $schema->integer()->description('Budget id (withdrawals).'),
             'budget_name'      => $schema->string()->description('Budget name.'),
-            'tags'             => $schema->array()->items($schema->string())->description('Replace tags with this set (deduped case-insensitively).'),
-            'notes'            => $schema->string()->description('Replace notes (max 32KB).'),
-            'verbose'          => $schema->boolean()->description('Return the full JSON:API document instead of the reduced shape.'),
-            'include_nulls'    => $schema->boolean()->description('Keep null attribute values in the reduced shape.')
+            'tags'             => $schema->array()->items($schema->string())->description('Replaces all tags.'),
+            'notes'            => $schema->string()->description('Replaces notes.'),
+            ...$this->writeOutputSchema($schema)
         ];
     }
 

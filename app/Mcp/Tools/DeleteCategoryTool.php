@@ -40,7 +40,7 @@ use Throwable;
  * Transactions that referenced the category are kept; they simply lose the category
  * association (the repository removes the category/journal links).
  */
-#[Description('Delete a category by its id. Transactions keep existing but lose their link to this category.')]
+#[Description('Delete a category; its transactions stay, uncategorised.')]
 #[IsDestructive]
 final class DeleteCategoryTool extends AbstractMcpTool
 {
@@ -90,7 +90,7 @@ final class DeleteCategoryTool extends AbstractMcpTool
     public function schema(JsonSchema $schema): array
     {
         return [
-            'category_id' => $schema->integer()->required()->description('Numeric ID of the category to delete.')
+            'category_id' => $schema->integer()->required()->description('Category id.')
         ];
     }
 }

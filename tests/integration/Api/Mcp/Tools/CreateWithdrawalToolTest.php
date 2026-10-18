@@ -109,7 +109,8 @@ final class CreateWithdrawalToolTest extends TestCase
             'destination_name' => $destination->name,
             'amount'           => '12.50',
             'date'             => '2026-05-17',
-            'description'      => 'Lunch'
+            'description'      => 'Lunch',
+            'compact'          => false
         ]);
         $response->assertOk();
 

@@ -64,6 +64,7 @@ final class ServerManifestTest extends TestCase
         'get-audit-log-tool',
         'get-budget-tool',
         'get-category-tool',
+        'get-rule-tool',
         'get-tag-tool',
         'get-transaction-tool',
         'insight-expense-tool',
@@ -73,6 +74,7 @@ final class ServerManifestTest extends TestCase
         'list-budgets-tool',
         'list-categories-tool',
         'list-piggy-banks-tool',
+        'list-rule-groups-tool',
         'list-rules-tool',
         'list-tags-tool',
         'list-transactions-tool',
@@ -80,43 +82,20 @@ final class ServerManifestTest extends TestCase
         'search-transactions-tool',
         'summary-basic-tool',
         'update-rule-tool',
-        'update-transaction-tool',
+        'update-transaction-tool'
     ];
 
     private const array EXPECTED_RESOURCES = [
         'account-types-catalog-resource',
         'currencies-catalog-resource',
         'link-types-catalog-resource',
+        'search-help-resource',
         'transaction-types-catalog-resource',
         'user-accounts-resource',
         'user-budgets-resource',
         'user-categories-resource',
-        'user-tags-resource',
+        'user-tags-resource'
     ];
-
-    /**
-     * @covers \FireflyIII\Mcp\Servers\FireflyServer
-     */
-    public function testToolsListExposesEntireSurfaceInOneResponse(): void
-    {
-        $body = $this->mcpCall('tools/list')->assertOk()->json();
-
-        $names = array_column($body['result']['tools'] ?? [], 'name');
-        sort($names);
-        $expected = self::EXPECTED_TOOLS;
-        sort($expected);
-
-        self::assertSame($expected, $names, 'Advertised tool surface drifted from the expected set.');
-
-        // The whole surface must arrive in a single page; many clients do not follow nextCursor.
-        // This guards FireflyServer::$defaultPaginationLength against an upstream default reset.
-        self::assertArrayNotHasKey('nextCursor', $body['result'], 'tools/list paginated; trailing tools would be invisible to clients.');
-
-        foreach ($body['result']['tools'] as $tool) {
-            self::assertNotEmpty($tool['description'] ?? '', sprintf('Tool %s has no description.', $tool['name']));
-            self::assertArrayHasKey('inputSchema', $tool, sprintf('Tool %s exposes no input schema.', $tool['name']));
-        }
-    }
 
     /**
      * Clients group tools by their annotations (read-only vs write/delete), so every tool must
@@ -164,6 +143,30 @@ final class ServerManifestTest extends TestCase
 
         self::assertSame($expected, $names, 'Advertised resource surface drifted from the expected set.');
         self::assertArrayNotHasKey('nextCursor', $body['result'], 'resources/list paginated; trailing resources would be invisible to clients.');
+    }
+
+    /**
+     * @covers \FireflyIII\Mcp\Servers\FireflyServer
+     */
+    public function testToolsListExposesEntireSurfaceInOneResponse(): void
+    {
+        $body = $this->mcpCall('tools/list')->assertOk()->json();
+
+        $names = array_column($body['result']['tools'] ?? [], 'name');
+        sort($names);
+        $expected = self::EXPECTED_TOOLS;
+        sort($expected);
+
+        self::assertSame($expected, $names, 'Advertised tool surface drifted from the expected set.');
+
+        // The whole surface must arrive in a single page; many clients do not follow nextCursor.
+        // This guards FireflyServer::$defaultPaginationLength against an upstream default reset.
+        self::assertArrayNotHasKey('nextCursor', $body['result'], 'tools/list paginated; trailing tools would be invisible to clients.');
+
+        foreach ($body['result']['tools'] as $tool) {
+            self::assertNotEmpty($tool['description'] ?? '', sprintf('Tool %s has no description.', $tool['name']));
+            self::assertArrayHasKey('inputSchema', $tool, sprintf('Tool %s exposes no input schema.', $tool['name']));
+        }
     }
 
     protected function setUp(): void

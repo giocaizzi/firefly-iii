@@ -43,7 +43,7 @@ use Throwable;
  * transactions using it) are removed. Use the move target to merge phantom/duplicate
  * accounts into the correct one without losing history.
  */
-#[Description('Delete an account by its id. Optionally pass move_to_account_id to move this account\'s transactions onto another account before deleting (merge); without it, the account\'s transactions are deleted.')]
+#[Description('Delete an account. With move_to_account_id its transactions move there first (merge); without it they are deleted.')]
 #[IsDestructive]
 final class DeleteAccountTool extends AbstractMcpTool
 {
@@ -110,8 +110,8 @@ final class DeleteAccountTool extends AbstractMcpTool
     public function schema(JsonSchema $schema): array
     {
         return [
-            'account_id'         => $schema->integer()->required()->description('Numeric ID of the account to delete.'),
-            'move_to_account_id' => $schema->integer()->description('Optional account id to receive this account\'s transactions before deletion (merge).')
+            'account_id'         => $schema->integer()->required()->description('Account id.'),
+            'move_to_account_id' => $schema->integer()->description('Account that receives the transactions first (merge).')
         ];
     }
 }

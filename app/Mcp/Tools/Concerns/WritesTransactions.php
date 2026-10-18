@@ -150,6 +150,7 @@ trait WritesTransactions
      */
     protected function createGroup(string $type, Request $request): Response
     {
+        $this->validateShapeArgs($request);
         $input          = $request->toArray();
         $idempotencyKey = array_key_exists('idempotency_key', $input) ? (string) $input['idempotency_key'] : '';
 

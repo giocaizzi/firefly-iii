@@ -81,7 +81,8 @@ final class CreateDepositToolTest extends TestCase
             'destination_id' => $destination->id,
             'amount'         => '500.00',
             'date'           => '2026-05-17',
-            'description'    => 'Monthly salary'
+            'description'    => 'Monthly salary',
+            'compact'        => false
         ]);
         $response->assertOk();
 

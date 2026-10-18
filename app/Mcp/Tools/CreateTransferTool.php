@@ -24,6 +24,7 @@ declare(strict_types=1);
 
 namespace FireflyIII\Mcp\Tools;
 
+use FireflyIII\Mcp\Tools\Concerns\ProjectsTransactions;
 use FireflyIII\Mcp\Tools\Concerns\WritesTransactions;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Laravel\Mcp\Request;
@@ -37,10 +38,11 @@ use Laravel\Mcp\Server\Tools\Annotations\IsDestructive;
  * Cross-currency transfers are rejected: the source and destination accounts
  * must share the same currency. Users who need cross-currency must use the REST API.
  */
-#[Description('Create a transfer between two of the authenticated user\'s asset accounts (same currency only).')]
+#[Description('Create a transfer between two same-currency asset accounts.')]
 #[IsDestructive(false)]
 final class CreateTransferTool extends AbstractMcpTool
 {
+    use ProjectsTransactions;
     use WritesTransactions;
 
     public function handle(Request $request): Response
@@ -54,23 +56,22 @@ final class CreateTransferTool extends AbstractMcpTool
     public function schema(JsonSchema $schema): array
     {
         return [
-            'source_id'        => $schema->integer()->description('Numeric ID of the source asset account.'),
-            'source_name'      => $schema->string()->description('Name of the source asset account (must already exist).'),
-            'destination_id'   => $schema->integer()->description('Numeric ID of the destination asset account.'),
-            'destination_name' => $schema->string()->description('Name of the destination asset account (must already exist).'),
-            'amount'           => $schema->string()->required()->description('Positive decimal amount. Both accounts must share the same currency.'),
-            'date'             => $schema->string()->required()->description('ISO-8601 date/time.'),
-            'description'      => $schema->string()->required()->description('Human-readable transaction description (1-1000 chars).'),
-            'category_id'      => $schema->integer()->description('Numeric ID of a category to attach.'),
-            'category_name'    => $schema->string()->description('Category name to attach (created if missing).'),
-            'tags'             => $schema->array()->items($schema->string())->description('Tag ids or tag names.'),
-            'notes'            => $schema->string()->description('Free-form notes attached to the journal.'),
+            'source_id'        => $schema->integer()->description('Source asset account id.'),
+            'source_name'      => $schema->string()->description('Source asset account name (must exist).'),
+            'destination_id'   => $schema->integer()->description('Asset account id.'),
+            'destination_name' => $schema->string()->description('Destination asset account name (must exist).'),
+            'amount'           => $schema->string()->required()->description('Positive decimal string.'),
+            'date'             => $schema->string()->required()->description('YYYY-MM-DD or ISO 8601 date-time.'),
+            'description'      => $schema->string()->required()->description('1-1000 chars.'),
+            'category_id'      => $schema->integer()->description('Category id.'),
+            'category_name'    => $schema->string()->description('Category name (created if missing).'),
+            'tags'             => $schema->array()->items($schema->string())->description('Tag names or ids.'),
+            'notes'            => $schema->string()->description('Notes.'),
             'idempotency_key'  => $schema
                 ->string()
                 ->max(self::MAX_IDEMPOTENCY_KEY_LENGTH)
-                ->description('Printable-ASCII key (max 128 chars) used to deduplicate retries.'),
-            'verbose'          => $schema->boolean()->description('Return the full JSON:API document instead of the reduced shape.'),
-            'include_nulls'    => $schema->boolean()->description('Keep null attribute values in the reduced shape.')
+                ->description('Retry dedup key (printable ASCII, max 128); a replay returns the original.'),
+            ...$this->writeOutputSchema($schema)
         ];
     }
 }

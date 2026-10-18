@@ -39,7 +39,7 @@ use Throwable;
 /**
  * Soft-delete a transaction group by its id.
  */
-#[Description('Delete a transaction by its id. The journal is soft-deleted (recoverable via the REST API).')]
+#[Description('Soft-delete a transaction group (recoverable via the REST API).')]
 #[IsDestructive]
 final class DeleteTransactionTool extends AbstractMcpTool
 {
@@ -86,9 +86,9 @@ final class DeleteTransactionTool extends AbstractMcpTool
     public function schema(JsonSchema $schema): array
     {
         return [
-            'transaction_id' => $schema->integer()->required()->description('Numeric ID of the transaction group to delete.'),
-            'verbose'        => $schema->boolean()->description('Unused for deletes; accepted for argument-parity.'),
-            'include_nulls'  => $schema->boolean()->description('Unused for deletes; accepted for argument-parity.')
+            'transaction_id' => $schema->integer()->required()->description('Transaction id (a row\'s id or group_id).'),
+            'verbose'        => $schema->boolean()->description('No effect here.'),
+            'include_nulls'  => $schema->boolean()->description('No effect here.')
         ];
     }
 }

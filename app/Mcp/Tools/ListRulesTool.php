@@ -24,6 +24,8 @@ declare(strict_types=1);
 
 namespace FireflyIII\Mcp\Tools;
 
+use FireflyIII\Mcp\Support\HtmlText;
+use FireflyIII\Mcp\Tools\Concerns\ShapesRules;
 use FireflyIII\Models\Rule;
 use FireflyIII\Repositories\Rule\RuleRepositoryInterface;
 use FireflyIII\Transformers\RuleTransformer;
@@ -38,11 +40,15 @@ use Laravel\Mcp\Server\Tools\Annotations\IsReadOnly;
 use League\Fractal\Pagination\IlluminatePaginatorAdapter;
 use League\Fractal\Resource\Collection as FractalCollection;
 
-#[Description("List the authenticated user's rules, optionally filtered to active ones only.")]
+#[Description('List rules by title, group or active status; get-rule shows triggers and actions.')]
 #[IsReadOnly]
 #[IsIdempotent]
 final class ListRulesTool extends AbstractMcpTool
 {
+    use ShapesRules {
+        shape as private decodedShape;
+    }
+
     public function handle(Request $request): Response
     {
         /** @var User $user */
@@ -56,6 +62,18 @@ final class ListRulesTool extends AbstractMcpTool
         if (true === $request->get('active')) {
             $collection = $collection->filter(static fn(Rule $rule): bool => true === (bool) $rule->active);
         }
+        if (null !== $request->get('group_id')) {
+            $groupId    = $this->positiveIntArg($request, 'group_id', 0);
+            $collection = $collection->filter(static fn(Rule $rule): bool => $groupId === (int) $rule->rule_group_id);
+        }
+        $query = trim((string) $request->get('query', ''));
+        if ('' !== $query) {
+            $collection = $collection->filter(static fn(Rule $rule): bool => str_contains(
+                mb_strtolower(HtmlText::decode((string) $rule->title)),
+                mb_strtolower($query)
+            ));
+        }
+        $collection = $collection->values();
 
         $count  = $collection->count();
         $offset = ($page - 1) * $limit;
@@ -78,11 +96,45 @@ final class ListRulesTool extends AbstractMcpTool
     public function schema(JsonSchema $schema): array
     {
         return [
-            'active'        => $schema->boolean()->description('When true, return only active rules.'),
-            'page'          => $schema->integer()->description('Page number (1-based).'),
-            'limit'         => $schema->integer()->description("Items per page; defaults to the user's listPageSize preference."),
-            'verbose'       => $schema->boolean()->description('Return the raw JSON:API document instead of the reduced shape.'),
-            'include_nulls' => $schema->boolean()->description('Preserve null-valued attributes in the reduced output.')
+            'query'    => $schema->string()->description('Title contains (case-insensitive).'),
+            'group_id' => $schema->integer()->description('Only rules in this rule group.'),
+            'active'   => $schema->boolean()->description('true = active rules only.'),
+            ...$this->pagingSchema($schema),
+            ...$this->compactSchema($schema),
+            ...$this->outputFlagsSchema($schema)
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $jsonApiDocument
+     *
+     * @return array<string, mixed>
+     */
+    protected function shape(array $jsonApiDocument, Request $request): array
+    {
+        $reduced = $this->decodedShape($jsonApiDocument, $request);
+        if (!(bool) $request->get('compact', true) || !is_array($reduced['data'] ?? null)) {
+            return $reduced;
+        }
+        $map = [
+            'id'            => 'id',
+            'group_id'      => 'rule_group_id',
+            'group'         => 'rule_group_title',
+            'title'         => 'title',
+            'active'        => 'active',
+            'strict'        => 'strict',
+            'order'         => 'order',
+            'trigger_count' => 'trigger_count',
+            'action_count'  => 'action_count'
+        ];
+        $reduced['data'] = array_map(function (array $row) use ($map, $request): array {
+            $row['rule_group_id'] = null !== ($row['rule_group_id'] ?? null) ? (int) $row['rule_group_id'] : null;
+            $row['trigger_count'] = count((array) ($row['triggers'] ?? []));
+            $row['action_count']  = count((array) ($row['actions'] ?? []));
+
+            return $this->pick($row, $map, $this->includeNulls($request));
+        }, $reduced['data']);
+
+        return $reduced;
     }
 }

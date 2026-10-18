@@ -32,8 +32,9 @@ Edge cases and known quirks. Skim once; come back when something behaves unexpec
 
 ## Pagination
 
-- Default page size = user's `listPageSize` preference (typically 50). Override with `limit` per call.
-- `meta.pagination` is preserved verbatim in the reduced envelope. To page forward: read `current_page` and `total_pages`, increment, refetch with `page=<next>`.
+- Default page size is 25, maximum 200. `limit` above 200, `page`/`limit` below 1, unknown enum values (e.g. `type=zzz`) and malformed dates are rejected with `{"error":"invalid_argument","field":..,"message":..}` — never silently coerced.
+- `meta.pagination` is preserved verbatim. To page forward: when `meta.has_more` is true, refetch with `page=<meta.next_page>`.
+- `search-transactions` ignores unknown or malformed operators and lists them in `meta.warnings`; check it before concluding there are no matches.
 - Don't iterate every page when an aggregate tool would answer the question — see [recipes.md](recipes.md).
 
 ## Bulk-create semantics
@@ -46,7 +47,7 @@ Edge cases and known quirks. Skim once; come back when something behaves unexpec
 ## Aggregate-tool response shape
 
 - `summary-basic`, `insight-*`, and `chart-data` return `{ data: ..., meta: { ... } }` envelopes **directly** — NOT through the standard JsonApiReducer pipeline.
-- `verbose: true` has no effect on aggregate tools (no JSON:API to fall back to).
+- `verbose: true` has no effect on aggregate tools (no JSON:API to fall back to); `include_nulls: true` keeps null values.
 - Don't expect `meta.pagination` on aggregates — they're not paginated.
 
 ## Feature flags

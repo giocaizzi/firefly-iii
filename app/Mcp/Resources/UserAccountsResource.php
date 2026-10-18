@@ -49,9 +49,22 @@ use League\Fractal\Serializer\JsonApiSerializer;
  */
 #[Uri('firefly-iii://user/accounts')]
 #[MimeType('application/json')]
-#[Description("The authenticated user's active chart of accounts (asset, liability, expense, revenue).")]
+#[Description(
+    'Your active accounts (asset, liability, expense, revenue), unpaged. Paged/filtered: firefly-iii://user/accounts?page=1&limit=25&type=asset&query=text.'
+)]
 final class UserAccountsResource extends Resource
 {
+    public const array TYPES = [
+        AccountTypeEnum::ASSET->value,
+        AccountTypeEnum::EXPENSE->value,
+        AccountTypeEnum::REVENUE->value,
+        AccountTypeEnum::LOAN->value,
+        AccountTypeEnum::DEBT->value,
+        AccountTypeEnum::MORTGAGE->value,
+        AccountTypeEnum::CREDITCARD->value,
+        AccountTypeEnum::LIABILITY_CREDIT->value
+    ];
+
     public function handle(Request $request): Response
     {
         /** @var User $user */
@@ -60,17 +73,7 @@ final class UserAccountsResource extends Resource
         $repository = app(AccountRepositoryInterface::class);
         $repository->setUser($user);
 
-        $types = [
-            AccountTypeEnum::ASSET->value,
-            AccountTypeEnum::EXPENSE->value,
-            AccountTypeEnum::REVENUE->value,
-            AccountTypeEnum::LOAN->value,
-            AccountTypeEnum::DEBT->value,
-            AccountTypeEnum::MORTGAGE->value,
-            AccountTypeEnum::CREDITCARD->value,
-            AccountTypeEnum::LIABILITY_CREDIT->value
-        ];
-        $accounts = $repository->getActiveAccountsByType($types);
+        $accounts = $repository->getActiveAccountsByType(self::TYPES);
 
         $enrichment = new AccountEnrichment();
         $enrichment->setUser($user);

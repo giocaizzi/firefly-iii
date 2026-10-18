@@ -27,6 +27,7 @@ namespace FireflyIII\Mcp\Tools;
 use Carbon\Carbon;
 use FireflyIII\Enums\AccountTypeEnum;
 use FireflyIII\Mcp\Support\Aggregates\InsightSummariser;
+use FireflyIII\Mcp\Support\JsonApiReducer;
 use FireflyIII\Repositories\Account\AccountRepositoryInterface;
 use FireflyIII\User;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
@@ -37,7 +38,7 @@ use Laravel\Mcp\Server\Attributes\Description;
 use Laravel\Mcp\Server\Tools\Annotations\IsIdempotent;
 use Laravel\Mcp\Server\Tools\Annotations\IsReadOnly;
 
-#[Description('Per-currency total income into asset accounts over a date range. Mirrors /api/v1/insight/income/total.')]
+#[Description('Total income per currency over a date range.')]
 #[IsReadOnly]
 #[IsIdempotent]
 final class InsightIncomeTool extends AbstractMcpTool
@@ -55,7 +56,7 @@ final class InsightIncomeTool extends AbstractMcpTool
         $rows       = $summariser->incomeTotal($start, $end, $accounts);
 
         return Response::json([
-            'data' => $rows,
+            'data' => $this->includeNulls($request) ? $rows : JsonApiReducer::prune($rows),
             'meta' => [
                 'start' => $start->format('Y-m-d'),
                 'end'   => $end->format('Y-m-d')
@@ -69,11 +70,11 @@ final class InsightIncomeTool extends AbstractMcpTool
     public function schema(JsonSchema $schema): array
     {
         return [
-            'start'         => $schema->string()->format('date')->required()->description('Inclusive start date (YYYY-MM-DD).'),
-            'end'           => $schema->string()->format('date')->required()->description('Inclusive end date (YYYY-MM-DD).'),
-            'account_ids'   => $schema->array()->description('Optional list of asset account ids to scope the sum. Omit for all asset accounts.'),
-            'verbose'       => $schema->boolean()->description('Has no structural effect for this tool; included for API symmetry.'),
-            'include_nulls' => $schema->boolean()->description('Preserve null-valued attributes in the reduced output.')
+            'start'         => $schema->string()->format('date')->required()->description('From date, inclusive (YYYY-MM-DD).'),
+            'end'           => $schema->string()->format('date')->required()->description('To date, inclusive (YYYY-MM-DD).'),
+            'account_ids'   => $schema->array()->description('Asset account ids to include; default: all.'),
+            'verbose'       => $schema->boolean()->description('No effect here.'),
+            'include_nulls' => $schema->boolean()->description('Keep null values.')
         ];
     }
 

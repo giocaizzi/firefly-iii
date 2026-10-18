@@ -39,7 +39,7 @@ use Laravel\Mcp\Server\Tools\Annotations\IsReadOnly;
 use League\Fractal\Pagination\IlluminatePaginatorAdapter;
 use League\Fractal\Resource\Collection as FractalCollection;
 
-#[Description("List the authenticated user's webhooks. Honors the global allow_webhooks feature flag.")]
+#[Description('List webhooks (needs webhooks enabled on the instance).')]
 #[IsReadOnly]
 #[IsIdempotent]
 final class ListWebhooksTool extends AbstractMcpTool
@@ -83,10 +83,8 @@ final class ListWebhooksTool extends AbstractMcpTool
     public function schema(JsonSchema $schema): array
     {
         return [
-            'page'          => $schema->integer()->description('Page number (1-based).'),
-            'limit'         => $schema->integer()->description("Items per page; defaults to the user's listPageSize preference."),
-            'verbose'       => $schema->boolean()->description('Return the raw JSON:API document instead of the reduced shape.'),
-            'include_nulls' => $schema->boolean()->description('Preserve null-valued attributes in the reduced output.')
+            ...$this->pagingSchema($schema),
+            ...$this->outputFlagsSchema($schema)
         ];
     }
 }

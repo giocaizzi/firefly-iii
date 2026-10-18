@@ -65,7 +65,8 @@ final class ListRulesToolTest extends TestCase
 
         $payload = $this->decodeJson($response);
         self::assertSame([], $payload['data']);
-        self::assertSame(50, $payload['meta']['pagination']['per_page']);
+        // default page size is the MCP default (25), not the user's listPageSize preference
+        self::assertSame(25, $payload['meta']['pagination']['per_page']);
     }
 
     protected function setUp(): void

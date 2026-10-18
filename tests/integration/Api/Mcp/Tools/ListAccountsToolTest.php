@@ -48,6 +48,27 @@ final class ListAccountsToolTest extends TestCase
     /**
      * @covers \FireflyIII\Mcp\Tools\ListAccountsTool
      */
+    public function testGivenAccountsWhenListingThenReturnsCompactRowsFilteredByName(): void
+    {
+        $user = $this->createAuthenticatedUser();
+        $this->createAccount($user, AccountTypeEnum::ASSET, 'Main checking');
+        $this->createAccount($user, AccountTypeEnum::ASSET, 'Savings');
+
+        $payload = $this->decodeJson($this->invokeTool($user, ListAccountsTool::class, ['query' => 'CHECK']));
+
+        self::assertCount(1, $payload['data']);
+        $row = $payload['data'][0];
+        self::assertSame('Main checking', $row['name']);
+        self::assertSame(['id', 'name', 'type', 'currency', 'current_balance', 'active'], array_keys($row));
+        self::assertSame('0', $row['current_balance']);
+
+        $full = $this->decodeJson($this->invokeTool($user, ListAccountsTool::class, ['query' => 'check', 'compact' => false]));
+        self::assertArrayHasKey('currency_symbol', $full['data'][0]);
+    }
+
+    /**
+     * @covers \FireflyIII\Mcp\Tools\ListAccountsTool
+     */
     public function testGivenLimitFilterWhenListingAccountsThenPaginationReflectsArgument(): void
     {
         $user     = $this->createAuthenticatedUser();
@@ -74,7 +95,8 @@ final class ListAccountsToolTest extends TestCase
         self::assertSame((int) $account->id, $payload['data'][0]['id']);
         self::assertSame('Checking', $payload['data'][0]['name']);
         self::assertSame('asset', $payload['data'][0]['type']);
-        self::assertSame(50, $payload['meta']['pagination']['per_page']);
+        // default page size is the MCP default (25), not the user's listPageSize preference
+        self::assertSame(25, $payload['meta']['pagination']['per_page']);
         self::assertSame(1, $payload['meta']['pagination']['current_page']);
         self::assertArrayNotHasKey('included', $payload);
     }

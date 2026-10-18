@@ -38,7 +38,7 @@ use Laravel\Mcp\Server\Tools\Annotations\IsReadOnly;
 use League\Fractal\Pagination\IlluminatePaginatorAdapter;
 use League\Fractal\Resource\Collection as FractalCollection;
 
-#[Description("List the authenticated user's budgets, optionally filtered to active ones only.")]
+#[Description('List budgets.')]
 #[IsReadOnly]
 #[IsIdempotent]
 final class ListBudgetsTool extends AbstractMcpTool
@@ -79,11 +79,9 @@ final class ListBudgetsTool extends AbstractMcpTool
     public function schema(JsonSchema $schema): array
     {
         return [
-            'active'        => $schema->boolean()->description('When true, return only active budgets.'),
-            'page'          => $schema->integer()->description('Page number (1-based).'),
-            'limit'         => $schema->integer()->description("Items per page; defaults to the user's listPageSize preference."),
-            'verbose'       => $schema->boolean()->description('Return the raw JSON:API document instead of the reduced shape.'),
-            'include_nulls' => $schema->boolean()->description('Preserve null-valued attributes in the reduced output.')
+            'active' => $schema->boolean()->description('true = active only.'),
+            ...$this->pagingSchema($schema),
+            ...$this->outputFlagsSchema($schema)
         ];
     }
 }

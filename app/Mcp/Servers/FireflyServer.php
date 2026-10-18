@@ -27,7 +27,9 @@ namespace FireflyIII\Mcp\Servers;
 use FireflyIII\Mcp\Resources\AccountTypesCatalogResource;
 use FireflyIII\Mcp\Resources\CurrenciesCatalogResource;
 use FireflyIII\Mcp\Resources\LinkTypesCatalogResource;
+use FireflyIII\Mcp\Resources\SearchHelpResource;
 use FireflyIII\Mcp\Resources\TransactionTypesCatalogResource;
+use FireflyIII\Mcp\Resources\UserAccountsQueryResource;
 use FireflyIII\Mcp\Resources\UserAccountsResource;
 use FireflyIII\Mcp\Resources\UserBudgetsResource;
 use FireflyIII\Mcp\Resources\UserCategoriesResource;
@@ -46,6 +48,7 @@ use FireflyIII\Mcp\Tools\GetAccountTool;
 use FireflyIII\Mcp\Tools\GetAuditLogTool;
 use FireflyIII\Mcp\Tools\GetBudgetTool;
 use FireflyIII\Mcp\Tools\GetCategoryTool;
+use FireflyIII\Mcp\Tools\GetRuleTool;
 use FireflyIII\Mcp\Tools\GetTagTool;
 use FireflyIII\Mcp\Tools\GetTransactionTool;
 use FireflyIII\Mcp\Tools\InsightExpenseTool;
@@ -55,6 +58,7 @@ use FireflyIII\Mcp\Tools\ListBillsTool;
 use FireflyIII\Mcp\Tools\ListBudgetsTool;
 use FireflyIII\Mcp\Tools\ListCategoriesTool;
 use FireflyIII\Mcp\Tools\ListPiggyBanksTool;
+use FireflyIII\Mcp\Tools\ListRuleGroupsTool;
 use FireflyIII\Mcp\Tools\ListRulesTool;
 use FireflyIII\Mcp\Tools\ListTagsTool;
 use FireflyIII\Mcp\Tools\ListTransactionsTool;
@@ -80,7 +84,7 @@ final class FireflyServer extends Server
     protected string $version;
 
     /**
-     * Override laravel/mcp's default page size (15) so all 31 MCP tools land in a single
+     * Override laravel/mcp's default page size (15) so all 33 MCP tools land in a single
      * tools/list response. Many MCP clients — Claude Code's SDK among them — do NOT
      * automatically follow nextCursor, which silently hides the trailing tools (aggregates
      * + writes) from the agent. Keeping the entire surface visible after one round-trip
@@ -105,6 +109,8 @@ final class FireflyServer extends Server
         // power-user
         ListBillsTool::class,
         ListRulesTool::class,
+        GetRuleTool::class,
+        ListRuleGroupsTool::class,
         ListPiggyBanksTool::class,
         ListWebhooksTool::class,
         GetAuditLogTool::class,
@@ -137,7 +143,9 @@ final class FireflyServer extends Server
         UserAccountsResource::class,
         UserTagsResource::class,
         UserCategoriesResource::class,
-        UserBudgetsResource::class
+        UserBudgetsResource::class,
+        UserAccountsQueryResource::class,
+        SearchHelpResource::class
     ];
 
     protected string $instructions = <<<'MARKDOWN'
@@ -146,6 +154,15 @@ final class FireflyServer extends Server
         backed by Laravel Passport — clients discover the auth server via the
         /.well-known/oauth-* endpoints, register via /oauth/register, and present
         a bearer access token carrying the `mcp:use` scope.
+
+        Output: compact rows by default, nulls and empty values omitted. `compact=false`
+        returns every attribute, `verbose=true` the raw JSON:API document. Lists page with
+        `page` / `limit` (default 25, max 200) and report `meta.has_more` / `meta.next_page`.
+        Transaction rows: `id` is the transaction (group) id every tool accepts; `journal_id`
+        appears only when it differs. Split groups are {group_id, title, splits}. Amounts are in the primary
+        currency (`meta.primary_currency`) unless the row has `currency`. Invalid arguments
+        return {"error":"invalid_argument","field":..,"message":..}.
+        Search syntax: resource firefly-iii://help/search.
         MARKDOWN;
 
     public function __construct(\Laravel\Mcp\Server\Contracts\Transport $transport)

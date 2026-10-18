@@ -34,10 +34,37 @@ namespace FireflyIII\Mcp\Support;
  *    flatten `relationships.X.data.id` (single or array of ids) into `X_id` / `X_ids`.
  *  - preserve `meta.pagination` verbatim and any other top-level meta keys.
  *  - if `included` is present, recursively reduce into `_included` keyed by `"type/id"`.
- *  - when `include_nulls` is false (default) attributes whose value is null are omitted.
+ *  - when `include_nulls` is false (default) null, empty-string and empty-array values are
+ *    omitted, recursively (so nested split rows lose their null fields too).
  */
 final class JsonApiReducer
 {
+    /**
+     * Recursively drop null, empty-string and empty-array values from a nested value.
+     */
+    public static function prune(mixed $value): mixed
+    {
+        if (!is_array($value)) {
+            return $value;
+        }
+        $isList = array_is_list($value);
+        $result = [];
+        foreach ($value as $key => $entry) {
+            $entry = self::prune($entry);
+            if (self::isEmpty($entry)) {
+                continue;
+            }
+            $result[$key] = $entry;
+        }
+
+        return $isList ? array_values($result) : $result;
+    }
+
+    private static function isEmpty(mixed $value): bool
+    {
+        return null === $value || '' === $value || [] === $value;
+    }
+
     /**
      * Reduce a JSON:API document.
      *
@@ -157,8 +184,11 @@ final class JsonApiReducer
 
         if (array_key_exists('attributes', $item) && is_array($item['attributes'])) {
             foreach ($item['attributes'] as $name => $value) {
-                if (!$includeNulls && null === $value) {
-                    continue;
+                if (!$includeNulls) {
+                    $value = self::prune($value);
+                    if (self::isEmpty($value)) {
+                        continue;
+                    }
                 }
                 $flat[(string) $name] = $value;
             }

@@ -43,7 +43,7 @@ use Laravel\Mcp\Server\Tools\Annotations\IsReadOnly;
  * transaction. This returns both the group-level entries and the entries on the
  * transaction's underlying journal(s), ordered oldest-first.
  */
-#[Description("Read the audit-log change history for a transaction (rule-driven and conversion changes, with before/after values).")]
+#[Description('Change history of a transaction (rule and conversion changes, before/after values).')]
 #[IsReadOnly]
 #[IsIdempotent]
 final class GetAuditLogTool extends AbstractMcpTool
@@ -57,7 +57,7 @@ final class GetAuditLogTool extends AbstractMcpTool
         }
 
         /** @var User $user */
-        $user  = auth()->user();
+        $user = auth()->user();
 
         /** @var null|TransactionGroup $group */
         $group = TransactionGroup::where('user_id', $user->id)->find($transactionId);
@@ -69,13 +69,15 @@ final class GetAuditLogTool extends AbstractMcpTool
         // audit repository queries purely by auditable type+id.
         $repository = app(ALERepositoryInterface::class);
 
-        $entries = $repository->getForObject($group)
-            ->map(fn(AuditLogEntry $entry): array => $this->mapEntry($entry, 'group', null));
+        $entries = $repository->getForObject($group)->map(fn(AuditLogEntry $entry): array => $this->mapEntry($entry, 'group', null));
 
         foreach ($group->transactionJournals()->get() as $journal) {
-            $journalEntries = $repository->getForId(TransactionJournal::class, (int) $journal->id)
-                ->map(fn(AuditLogEntry $entry): array => $this->mapEntry($entry, 'journal', (int) $journal->id));
-            $entries        = $entries->concat($journalEntries);
+            $journalEntries = $repository->getForId(TransactionJournal::class, (int) $journal->id)->map(fn(AuditLogEntry $entry): array => $this->mapEntry(
+                $entry,
+                'journal',
+                (int) $journal->id
+            ));
+            $entries = $entries->concat($journalEntries);
         }
 
         $sorted = $entries->sortBy('created_at')->values()->all();
@@ -93,7 +95,7 @@ final class GetAuditLogTool extends AbstractMcpTool
     public function schema(JsonSchema $schema): array
     {
         return [
-            'transaction_id' => $schema->integer()->required()->description('Numeric ID of the transaction whose change history you want.')
+            'transaction_id' => $schema->integer()->required()->description('Transaction id (a row\'s id or group_id).')
         ];
     }
 
