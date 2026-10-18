@@ -36,6 +36,9 @@ use Laravel\Mcp\Server\Tools\Annotations\IsReadOnly;
 #[IsIdempotent]
 final class BillsReadTool extends AbstractApiTool
 {
+    /** The API's maximum page size, to fetch every bill before filtering on `active`. */
+    private const int ALL_BILLS = 131337;
+
     public const array COMPACT = [
         'id',
         'name',
@@ -61,6 +64,7 @@ final class BillsReadTool extends AbstractApiTool
             'id'     => $schema->integer(),
             'start'  => $schema->string(),
             'end'    => $schema->string(),
+            'active' => $schema->boolean()->description('list: true = active only.'),
             ...$this->readSchema($schema)
         ];
     }
@@ -71,9 +75,41 @@ final class BillsReadTool extends AbstractApiTool
         $query  = $this->listQuery($request);
 
         return match ($action) {
-            'list'  => $this->respondApi($this->api('GET', 'bills', $query), $request, self::COMPACT),
+            'list'  => $this->respondApi(
+                true === $request->get('active')
+                    ? $this->activeOnly($this->api('GET', 'bills', [...$query, 'page' => 1, 'limit' => self::ALL_BILLS]), ...$this->pageAndLimit($request))
+                    : $this->api('GET', 'bills', $query),
+                $request,
+                self::COMPACT
+            ),
             'get'   => $this->respondApi($this->api('GET', sprintf('bills/%s', $this->idArg($request)), $query), $request, self::COMPACT),
             default => $this->respondTransactions($this->api('GET', sprintf('bills/%s/transactions', $this->idArg($request)), $query), $request)
         };
+    }
+
+    /**
+     * The API has no active filter: keep the active rows of the full list and page them here.
+     *
+     * @param array<string, mixed> $document
+     *
+     * @return array<string, mixed>
+     */
+    private function activeOnly(array $document, int $page, int $limit): array
+    {
+        $rows             = array_values(array_filter(
+            is_array($document['data'] ?? null) ? $document['data'] : [],
+            static fn (mixed $row): bool => is_array($row) && true === ($row['attributes']['active'] ?? null)
+        ));
+        $document['data'] = array_slice($rows, ($page - 1) * $limit, $limit);
+        $document['meta']['pagination'] = [
+            'total'        => count($rows),
+            'count'        => count($document['data']),
+            'per_page'     => $limit,
+            'current_page' => $page,
+            'total_pages'  => max(1, (int) ceil(count($rows) / $limit)),
+        ];
+        unset($document['links']);
+
+        return $document;
     }
 }

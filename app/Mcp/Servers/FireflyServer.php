@@ -73,10 +73,8 @@ use FireflyIII\Mcp\Tools\InsightIncomeTool;
 use FireflyIII\Mcp\Tools\LinksReadTool;
 use FireflyIII\Mcp\Tools\LinksWriteTool;
 use FireflyIII\Mcp\Tools\ListAccountsTool;
-use FireflyIII\Mcp\Tools\ListBillsTool;
 use FireflyIII\Mcp\Tools\ListBudgetsTool;
 use FireflyIII\Mcp\Tools\ListCategoriesTool;
-use FireflyIII\Mcp\Tools\ListPiggyBanksTool;
 use FireflyIII\Mcp\Tools\ListRuleGroupsTool;
 use FireflyIII\Mcp\Tools\ListRulesTool;
 use FireflyIII\Mcp\Tools\ListTagsTool;
@@ -151,11 +149,9 @@ final class FireflyServer extends Server
         SearchTransactionsTool::class,
         MatchTransactionsTool::class,
         // power-user
-        ListBillsTool::class,
         ListRulesTool::class,
         GetRuleTool::class,
         ListRuleGroupsTool::class,
-        ListPiggyBanksTool::class,
         ListWebhooksTool::class,
         GetAuditLogTool::class,
         HealthTool::class,

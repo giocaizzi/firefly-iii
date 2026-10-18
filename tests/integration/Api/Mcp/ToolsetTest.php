@@ -79,10 +79,10 @@ final class ToolsetTest extends TestCase
         $everyday = array_column($sets['everyday'], 'name');
         $admin    = array_column($sets['admin'], 'name');
 
-        self::assertCount(25, $admin);
+        self::assertCount(24, $admin);
         self::assertContains(self::ADMIN_TOOL, $admin);
         self::assertSame([], array_intersect($everyday, $admin), 'The everyday and admin toolsets overlap.');
-        self::assertCount(63, array_unique([...$everyday, ...$admin]), 'The two toolsets do not cover every registered tool.');
+        self::assertCount(61, array_unique([...$everyday, ...$admin]), 'The two toolsets do not cover every registered tool.');
     }
 
     /**

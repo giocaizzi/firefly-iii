@@ -48,7 +48,6 @@ use FireflyIII\Mcp\Tools\HealthTool;
 use FireflyIII\Mcp\Tools\InsightExpenseTool;
 use FireflyIII\Mcp\Tools\InsightIncomeTool;
 use FireflyIII\Mcp\Tools\ListAccountsTool;
-use FireflyIII\Mcp\Tools\ListBillsTool;
 use FireflyIII\Mcp\Tools\ListBudgetsTool;
 use FireflyIII\Mcp\Tools\ListCategoriesTool;
 use FireflyIII\Mcp\Tools\ListRuleGroupsTool;
@@ -96,7 +95,6 @@ enum Toolset: string
         // search and bills
         SearchTransactionsTool::class,
         MatchTransactionsTool::class,
-        ListBillsTool::class,
         BillsReadTool::class,
         // rules
         ListRulesTool::class,

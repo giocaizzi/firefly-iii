@@ -271,7 +271,8 @@ abstract class AbstractMcpTool extends Tool
     }
 
     /**
-     * Add `has_more` / `next_page` next to a Fractal `meta.pagination` block.
+     * Add `has_more` / `next_page` next to a Fractal `meta.pagination` block, and a
+     * `meta.warnings` entry when `page` is past the last page (an empty list has one page).
      *
      * @param array<string, mixed> $result
      *
@@ -288,6 +289,12 @@ abstract class AbstractMcpTool extends Tool
         $result['meta']['has_more'] = $hasMore;
         if ($hasMore) {
             $result['meta']['next_page'] = $current + 1;
+        }
+        $last                       = max(1, (int) $pagination['total_pages']);
+        if ($current > $last) {
+            $warnings                   = is_array($result['meta']['warnings'] ?? null) ? $result['meta']['warnings'] : [];
+            $warnings[]                 = sprintf('page %d is past the last page (%d)', $current, $last);
+            $result['meta']['warnings'] = $warnings;
         }
 
         return $result;
