@@ -107,6 +107,35 @@ final class JsonApiReducerTest extends TestCase
     /**
      * @covers \FireflyIII\Mcp\Support\JsonApiReducer
      */
+    public function testGivenNestedNullsWhenReducingThenOmitsThemRecursivelyUnlessIncludeNulls(): void
+    {
+        $document = [
+            'data' => [
+                'type'       => 'transactions',
+                'id'         => '7',
+                'attributes' => [
+                    'group_title'  => null,
+                    'transactions' => [['amount' => '1.00', 'notes' => null, 'tags' => [], 'iban' => '', 'reconciled' => false]]
+                ]
+            ]
+        ];
+
+        self::assertSame(['data' => ['id' => 7, 'transactions' => [['amount' => '1.00', 'reconciled' => false]]]], new JsonApiReducer()->reduce($document));
+        self::assertSame(
+            [
+                'data' => [
+                    'id'           => 7,
+                    'group_title'  => null,
+                    'transactions' => [['amount' => '1.00', 'notes' => null, 'tags' => [], 'iban' => '', 'reconciled' => false]]
+                ]
+            ],
+            new JsonApiReducer()->reduce($document, ['include_nulls' => true])
+        );
+    }
+
+    /**
+     * @covers \FireflyIII\Mcp\Support\JsonApiReducer
+     */
     public function testGivenNullAttributesWhenIncludeNullsFalseThenAttributesAreDropped(): void
     {
         $document = [
