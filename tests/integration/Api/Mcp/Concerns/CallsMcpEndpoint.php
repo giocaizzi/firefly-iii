@@ -50,11 +50,15 @@ trait CallsMcpEndpoint
      * JSON object (`{}`) rather than an array so the server's schema coercion sees the
      * shape it expects.
      *
+     * `$toolset` is sent as the `toolset` query parameter; null leaves it off (the everyday default).
+     *
      * @param array<string, mixed> $params
      */
-    protected function mcpCall(string $method, array $params = []): TestResponse
+    protected function mcpCall(string $method, array $params = [], ?string $toolset = null): TestResponse
     {
-        return $this->postJson(self::MCP_ENDPOINT, [
+        $url = null === $toolset ? self::MCP_ENDPOINT : sprintf('%s?toolset=%s', self::MCP_ENDPOINT, urlencode($toolset));
+
+        return $this->postJson($url, [
             'jsonrpc' => '2.0',
             'id'      => 1,
             'method'  => $method,
