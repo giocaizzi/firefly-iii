@@ -1,6 +1,6 @@
 ---
 name: firefly-iii
-description: Use this skill whenever the user asks anything about their personal finances, money, spending, income, account balances, budgets, categories, savings goals, recurring bills, transaction history, or financial reports — even if they don't say "Firefly" by name. Phrases like "how much did I spend on...", "what's my balance", "log a transaction", "how am I doing this month", "show me my expenses", "did the rent come out", "categorize these", "set up a budget" all trigger this skill. The skill teaches the assistant how to drive the Firefly III MCP server (33 tools + 9 resources) to answer finance questions and make changes. Use this skill BEFORE making generic suggestions or guessing — Firefly is the user's source of truth for personal finance data.
+description: Use this skill whenever the user asks anything about their personal finances, money, spending, income, account balances, budgets, categories, savings goals, recurring bills, transaction history, or financial reports — even if they don't say "Firefly" by name. Phrases like "how much did I spend on...", "what's my balance", "log a transaction", "how am I doing this month", "show me my expenses", "did the rent come out", "categorize these", "set up a budget" all trigger this skill. The skill teaches the assistant how to drive the Firefly III MCP server (35 tools + 9 resources) to answer finance questions and make changes. Use this skill BEFORE making generic suggestions or guessing — Firefly is the user's source of truth for personal finance data.
 ---
 
 # Firefly III — operating the MCP endpoint
@@ -15,9 +15,9 @@ Five categories. Knowing the shape helps you pick the right tool fast.
 |---|---|---|
 | **Read — core entities** | `list-accounts`, `get-account`, `list-transactions`, `get-transaction`, `list-budgets`, `get-budget`, `list-categories`, `get-category`, `list-tags`, `get-tag` | Direct lookups: "what accounts do I have", "show that transaction from yesterday", "list my categories" |
 | **Read — search** | `search-transactions` | Free-text or operator search: "find that Amazon refund", "transactions with note 'tax 2025'" |
-| **Read — power-user** | `list-bills`, `list-rules`, `get-rule`, `list-rule-groups`, `list-piggy-banks`, `list-webhooks`, `get-audit-log` | Recurring bills, transaction rules, savings targets, integrations |
+| **Read — power-user** | `list-bills`, `list-rules`, `get-rule`, `list-rule-groups`, `list-piggy-banks`, `list-webhooks`, `get-audit-log`, `health` | Recurring bills, transaction rules, savings targets, integrations; `health` checks versions, features and write access |
 | **Read — aggregates** | `summary-basic`, `insight-expense`, `insight-income`, `chart-data` | "How am I doing this month", "spending by category", "balance over time" — **prefer these over computing aggregates yourself** from `list-transactions` |
-| **Write** | `create-withdrawal`, `create-deposit`, `create-transfer`, `update-transaction`, `delete-transaction`, `bulk-create-transactions` | Logging new transactions, fixing categorization, removing duplicates, importing batches |
+| **Write** | `create-withdrawal`, `create-deposit`, `create-transfer`, `update-transaction`, `delete-transaction`, `bulk-create-transactions`, `classify-transactions` | Logging new transactions, fixing categorization, removing duplicates, importing batches; `classify-transactions` recategorizes many at once |
 
 Resources (under URI scheme `firefly-iii://`) give grounding data without API churn:
 
@@ -43,7 +43,7 @@ Escape hatches: `compact: false` returns every attribute in the reduced shape, `
 
 3. **A specific entity by id or name** ("show my Chase Checking", "category 'Groceries'") → matching `get-*` tool. If the user gives a name and not an id, pass it as `*_name` — the server resolves both.
 
-4. **Working with a known list ("change categories on these five transactions")** → `update-transaction` per id, OR — if many — pre-load `firefly-iii://user/categories` once, then iterate. For batch work, see the recipes below.
+4. **Working with a known list ("change categories on these five transactions")** → `classify-transactions` with `ids` (or a search `query`): it previews before → after by default (`dry_run` true), then apply with `dry_run: false`. It only touches category, budget, bill, tags, notes and the expense/revenue account. Use `update-transaction` for a single transaction or for any other field. `add_tags` / `remove_tags` merge; `tags` replaces; `clear_category` / `clear_budget` / `clear_bill` unlink.
 
 5. **Logging a new spend/income** → `create-withdrawal` (paying out), `create-deposit` (money in), `create-transfer` (between two own accounts). Account types must match: withdrawal needs an asset source + expense destination; deposit needs revenue source + asset destination; transfer needs two asset accounts in the same currency.
 
@@ -101,6 +101,16 @@ bulk-create-transactions transactions=[ {item}, {item}, ... ]
 - Max 100 items per call. Chunk larger sets.
 - Each item can carry its own `idempotency_key` so retries don't duplicate.
 
+### Recipe: Recategorizing a batch safely
+
+```
+1. classify-transactions query="amazon date_after:2026-01-01" category_name="Shopping"   # dry run: rows with before/after
+2. Show the user the rows that would change; confirm
+3. classify-transactions <same args> dry_run=false
+```
+
+Pass `create_missing=false` when the user wants only existing categories/tags; check `meta.would_create` in the preview. A query matching more than `limit` (default 50, max 200) is an error — narrow it.
+
 ### Recipe: Idempotency on a single write
 
 Pass `idempotency_key="<deterministic-string>"` (≤128 printable-ASCII chars) on any `create-*` call. The server stores it as `mcp_idempotency_key` meta on the journal; a repeat call with the same key returns the original transaction id without creating a duplicate. **Use this when retrying a failed call** so you don't accidentally double-post.
@@ -117,7 +127,7 @@ These come from the MCP server's MVP scope (see `references/gotchas.md` for the 
 
 ## Destructive operations — confirm first
 
-`update-transaction`, `delete-transaction`, and `bulk-create-transactions` are marked destructive by the server. Before calling them:
+`update-transaction`, `delete-transaction`, `bulk-create-transactions`, `delete-account` and `classify-transactions` with `dry_run: false` change data. Before calling them:
 
 1. Echo back what you're about to do: the transaction id(s), the field(s) you're changing, the new value(s).
 2. Wait for the user to confirm.

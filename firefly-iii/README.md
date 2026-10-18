@@ -5,7 +5,7 @@ Plugin for operating a [Firefly III](https://firefly-iii.org/) personal-finance 
 ## What it ships
 
 - **MCP server registration** (`.mcp.json`) — HTTP transport, Bearer auth via `${FIREFLY_PAT}`, URL via `${FIREFLY_URL}`, plus optional Cloudflare Access service-token headers.
-- **Skill** `firefly-iii` (`skills/firefly-iii/`) — teaches the assistant when to consult Firefly (any finance / money / spending / budget / balance / transaction question) and how to wield the 33-tool surface efficiently. Includes references for the full tool catalog, common workflow recipes, and known gotchas.
+- **Skill** `firefly-iii` (`skills/firefly-iii/`) — teaches the assistant when to consult Firefly (any finance / money / spending / budget / balance / transaction question) and how to wield the 35-tool surface efficiently. Includes references for the full tool catalog, common workflow recipes, and known gotchas.
 - **Slash commands** namespaced under `/firefly-iii:`:
   - `/firefly-iii:summary [period]` — one-shot financial digest
   - `/firefly-iii:spending <period> [category]` — spending breakdown
@@ -15,13 +15,14 @@ Plugin for operating a [Firefly III](https://firefly-iii.org/) personal-finance 
 
 ## Tool surface
 
-33 tools: entity reads (`list-*` / `get-*` for accounts, transactions, budgets, categories, tags, rules, rule groups, bills, piggy banks, webhooks), `search-transactions`, aggregates (`summary-basic`, `insight-expense`, `insight-income`, `chart-data`), transaction writes (create withdrawal/deposit/transfer, update, convert, delete, bulk create), rule update/delete, and account/category delete. The full per-tool reference lives in [`skills/firefly-iii/references/tools.md`](skills/firefly-iii/references/tools.md).
+35 tools: entity reads (`list-*` / `get-*` for accounts, transactions, budgets, categories, tags, rules, rule groups, bills, piggy banks, webhooks), `search-transactions`, aggregates (`summary-basic`, `insight-expense`, `insight-income`, `chart-data`), `health` (versions, user, features, write access), transaction writes (create withdrawal/deposit/transfer, update, convert, delete, bulk create), `classify-transactions` (bulk category/budget/bill/tags/notes edits with a dry-run preview), rule update/delete, and account/category delete. The full per-tool reference lives in [`skills/firefly-iii/references/tools.md`](skills/firefly-iii/references/tools.md).
 
 Output is tuned for token budgets:
 
 - Transactions, accounts, rules and rule groups return compact rows; nulls and empty values are omitted everywhere. `compact: false` returns every attribute, `verbose: true` the raw JSON:API document, `include_nulls: true` keeps nulls.
 - Transaction reads take `fields` (pick row keys) and `description_max` (default 120, 0 = no cap).
 - Lists page with `page` / `limit` (default 25, max 200) and report `meta.has_more` / `meta.next_page`. Out-of-range or unknown arguments return `{"error":"invalid_argument",...}`.
+- Writes report any account, category or tag they created in `meta.created`; `create_missing: false` makes an unknown name an error instead. `update-transaction` and `classify-transactions` take `if_unmodified_since` (the `updated_at` you read via `fields: ["updated_at"]`) and refuse to overwrite a newer change.
 - Resources: catalogs (`firefly-iii://catalogs/*`), user snapshots (`firefly-iii://user/*`, with a paged `firefly-iii://user/accounts?page=&limit=&type=&query=` variant), and `firefly-iii://help/search` for the search syntax.
 
 ## Requirements

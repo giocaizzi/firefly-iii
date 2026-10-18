@@ -12,7 +12,7 @@ In addition to the per-tool args below, every read tool accepts:
 
 Tools with a compact default row (transactions, `list-accounts`, `list-rules`, `list-rule-groups`) also accept `compact: bool` (default `true`; `false` returns every attribute in the reduced shape). Transaction read tools (`list-transactions`, `search-transactions`, `get-transaction`) further accept:
 
-- `fields?: string[]` — keep only these row keys (compact keys or raw split keys such as `source_id`, `iban`, `internal_reference`); the ids are always kept
+- `fields?: string[]` — keep only these row keys (compact keys or raw split keys such as `source_id`, `iban`, `internal_reference`); the ids are always kept. `created_at` / `updated_at` (group timestamps) appear only when listed here; `updated_at` is what `if_unmodified_since` expects
 
 Compact transaction rows use `id` = the transaction (group) id every tool accepts and add `journal_id` only when it differs; split groups are `{ group_id, title, splits }` with `journal_id` on each split.
 - `description_max?: int` — description cap, default 120, `0` = no cap
@@ -91,6 +91,10 @@ Rule titles and descriptions come back HTML-decoded (`&` rather than `&amp;`); `
 
 Note: `list-webhooks` honors the instance-wide `allow_webhooks` flag — returns 404-equivalent error if disabled.
 
+### `health`
+- No arguments (besides `include_nulls`)
+- Returns `{ firefly_version, mcp: { server, build? }, user: { id, email, user_group_id }, features: { webhooks, exchange_rates, handle_debts, expression_engine, export }, can_write, token_scopes? }`. `mcp.build` comes from the `MCP_BUILD` env var, else the checkout's git commit; `can_write` reflects the user's role in their group.
+
 ## Read — aggregates
 
 ### `summary-basic`
@@ -114,8 +118,11 @@ Note: `list-webhooks` honors the instance-wide `allow_webhooks` flag — returns
 
 ## Write tools
 
-All write tools accept:
+The create tools accept:
 - `idempotency_key?: string` — printable ASCII, ≤128 chars. Server stores under `mcp_idempotency_key` journal meta. A second call with the same key returns the existing transaction id and `idempotent_replay: true` — no duplicate.
+
+Every tool that takes account, category or tag names (create-*, `bulk-create-transactions`, `update-transaction`, `classify-transactions`) accepts:
+- `create_missing?: bool` (default `true`) — unknown names are created as today and listed in `meta.created: { accounts?: [{id, name, type}], categories?: [{id, name}], tags?: [{id, tag}] }`; `false` returns `{"error":"missing_names","missing":{...}}` and writes nothing
 
 ### `create-withdrawal`
 Source must be **asset**, destination must be **expense**.
@@ -142,6 +149,9 @@ Same schema as withdrawal.
 ### `update-transaction`
 - `transaction_id: int` (required) — the transaction group id; the journal id is resolved automatically for single-journal groups
 - All other fields optional; same shape as create-* but every field optional. Server validates against `UpdateTransactionRequest::rules()`.
+- `tags` replaces the tag set; `add_tags?: string[]` / `remove_tags?: string[]` merge with it (case-insensitive)
+- `clear_category?`, `clear_budget?`, `clear_bill?: bool` — unlink; cannot be combined with an id or name for the same relation
+- `if_unmodified_since?: string` — the `updated_at` you read; a newer change returns `{"error":"conflict",...}` and nothing is written
 
 Marked `IsDestructive` + `IsIdempotent`.
 
@@ -156,6 +166,23 @@ Returns a plain-text confirmation. Marked `IsDestructive` (NOT idempotent — a 
   - Each item may carry its own `idempotency_key`
 - All-or-nothing inside a single DB transaction. Any validation failure aborts; zero inserts.
 - Response: `{ data: { created, replayed, total, transactions: [{ index, replayed, transaction }] }, meta: { primary_currency } }` with a compact row per item; `verbose: true` returns `[{ index, replayed, document }]` with the raw JSON:API document per item.
+
+- After a timeout, resend the same batch with the same keys: committed items replay (`replayed: true`, original transaction), nothing is duplicated.
+
+### `classify-transactions`
+Bulk classification edits; never touches amounts, dates, currencies, descriptions, asset accounts or types (any other argument is rejected).
+
+- Targets, exactly one of: `ids?: int[]` (transaction group ids, max 200) or `query?: string` (search syntax) with `limit?: int` (default 50, max 200; more matches is an error)
+- Changes (at least one): `category_id?` / `category_name?` / `clear_category?`, `budget_id?` / `budget_name?` (exact) / `clear_budget?`, `bill_id?` / `bill_name?` (exact) / `clear_bill?`, `tags?` (replace) / `add_tags?` / `remove_tags?`, `notes?` (replace, `""` clears) or `append_notes?`, `destination_name?` (expense account of withdrawals), `source_name?` (revenue account of deposits)
+- `dry_run?: bool` (default `true`) — preview; `false` applies, one DB transaction per group
+- `if_unmodified_since?: { "<id>": "<updated_at>" }` — per-target conflict check
+- `create_missing?: bool` — see above; the dry run lists would-be creations in `meta.would_create`
+- Response: `{ data: { dry_run, matched, would_change | changed, unchanged?, conflict?, error?, not_found?, rows: [{ id, status, before?, after?, message? }] }, meta? }`; split groups carry `splits: [{ journal_id, before, after }]`. `before` / `after` hold only the fields that change. Budget, bill and destination apply to withdrawals only, source to deposits only (other rows get `status: error`).
+
+### `delete-account`
+- `account_id: int` (required)
+- `move_to_account_id?: int` — move its transactions there first (merge)
+- `delete_transactions?: bool` — required (`true`) to delete an account that still has transactions without a move target; otherwise the call errors with the transaction count
 
 Every transaction write tool echoes the compact row (`compact: false` / `verbose: true` for the full shapes).
 
