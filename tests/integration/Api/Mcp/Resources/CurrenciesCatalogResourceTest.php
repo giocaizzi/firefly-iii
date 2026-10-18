@@ -25,6 +25,7 @@ declare(strict_types=1);
 namespace Tests\integration\Api\Mcp\Resources;
 
 use FireflyIII\Mcp\Resources\CurrenciesCatalogResource;
+use FireflyIII\Models\TransactionCurrency;
 use Tests\integration\Api\Mcp\Concerns\EnsuresPassportKeys;
 use Tests\integration\Api\Mcp\Concerns\InvokesMcpServer;
 use Tests\integration\TestCase;
@@ -63,6 +64,28 @@ final class CurrenciesCatalogResourceTest extends TestCase
         self::assertArrayHasKey('name', $first);
         self::assertArrayHasKey('symbol', $first);
         self::assertArrayHasKey('decimal_places', $first);
+    }
+
+    /**
+     * Enablement lives on the user-group pivot, not the legacy `enabled` column.
+     *
+     * @covers \FireflyIII\Mcp\Resources\CurrenciesCatalogResource
+     */
+    public function testGivenGroupCurrencyWhenReadingCurrenciesCatalogThenFlagsEnabledAndPrimary(): void
+    {
+        $user = $this->createAuthenticatedUser();
+        TransactionCurrency::query()->update(['enabled' => false]);
+        $eur = TransactionCurrency::whereCode('EUR')->firstOrFail();
+        $user->userGroup->currencies()->sync([$eur->id => ['group_default' => true]]);
+
+        $payload = $this->decodeJson($this->invokeResource($user, CurrenciesCatalogResource::class));
+        $byCode  = array_column($payload['data'], null, 'code');
+
+        self::assertGreaterThan(1, count($payload['data']));
+        self::assertTrue($byCode['EUR']['enabled']);
+        self::assertTrue($byCode['EUR']['primary']);
+        $others = array_filter($byCode, static fn(array $row): bool => 'EUR' !== $row['code']);
+        self::assertFalse(reset($others)['enabled']);
     }
 
     protected function setUp(): void

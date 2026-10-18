@@ -25,8 +25,9 @@ declare(strict_types=1);
 namespace FireflyIII\Mcp\Resources;
 
 use FireflyIII\Mcp\Support\JsonApiReducer;
-use FireflyIII\Models\TransactionCurrency;
+use FireflyIII\Repositories\Currency\CurrencyRepositoryInterface;
 use FireflyIII\Transformers\CurrencyTransformer;
+use FireflyIII\User;
 use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Attributes\Description;
@@ -38,20 +39,26 @@ use League\Fractal\Resource\Collection as FractalCollection;
 use League\Fractal\Serializer\JsonApiSerializer;
 
 /**
- * Static catalog of every enabled transaction currency.
+ * Catalog of every transaction currency, flagged with whether the user's group has it enabled
+ * and which one is primary.
  *
- * Pipeline: TransactionCurrency::where(enabled=true) -> CurrencyTransformer (JSON:API)
- * -> JsonApiReducer -> Response::text(json). The reducer drops nulls and flattens the
- * JSON:API envelope.
+ * Pipeline: CurrencyRepository::getAll() (which stamps the per-user-group enabled / primary
+ * flags) -> CurrencyTransformer (JSON:API) -> JsonApiReducer -> Response::text(json).
+ * The legacy `transaction_currencies.enabled` column is not used: enablement lives on the
+ * user-group pivot, so filtering on the column returned an empty list on real instances.
  */
 #[Uri('firefly-iii://catalogs/currencies')]
 #[MimeType('application/json')]
-#[Description('All transaction currencies known to this Firefly III instance.')]
+#[Description('All currencies, with enabled/primary flags for your user group.')]
 final class CurrenciesCatalogResource extends Resource
 {
     public function handle(Request $request): Response
     {
-        $currencies = TransactionCurrency::where('enabled', true)->get();
+        /** @var User $user */
+        $user       = auth()->user();
+        $repository = app(CurrencyRepositoryInterface::class);
+        $repository->setUser($user);
+        $currencies = $repository->getAll();
 
         $manager = new Manager();
         $manager->setSerializer(new JsonApiSerializer());
