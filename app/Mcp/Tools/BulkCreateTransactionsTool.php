@@ -25,6 +25,7 @@ declare(strict_types=1);
 namespace FireflyIII\Mcp\Tools;
 
 use FireflyIII\Api\V1\Requests\Models\Transaction\StoreRequest;
+use FireflyIII\Mcp\Support\CreatedEntities;
 use FireflyIII\Mcp\Tools\Concerns\ProjectsTransactions;
 use FireflyIII\Mcp\Tools\Concerns\WritesTransactions;
 use FireflyIII\Repositories\TransactionGroup\TransactionGroupRepositoryInterface;
@@ -45,12 +46,17 @@ use function Safe\json_encode;
  *
  * Semantics: all-or-nothing — any single failing item rolls back the whole batch. Per-item
  * idempotency keys are honoured: a key that matches an already-stored journal for
- * the same user replays that journal instead of creating a duplicate.
+ * the same user replays that journal instead of creating a duplicate. Because the batch is
+ * atomic, a client that timed out can resend the identical batch: if the first call committed,
+ * every keyed item replays (`replayed: true`, the original transaction); if it rolled back,
+ * the items are created now.
  *
  * Audit log: one `info` line per successful or replayed item plus one summary line
  * at the end with totals. Failures are logged at `error` with the offending index.
  */
-#[Description('Create up to 100 withdrawals/deposits/transfers atomically.')]
+#[Description(
+    'Create up to 100 withdrawals/deposits/transfers atomically. After a timeout, resend the same batch with the same idempotency_keys: committed items replay their original transaction (replayed=true), nothing is duplicated.'
+)]
 #[IsDestructive(false)]
 final class BulkCreateTransactionsTool extends AbstractMcpTool
 {
@@ -71,9 +77,10 @@ final class BulkCreateTransactionsTool extends AbstractMcpTool
         }
 
         /** @var User $user */
-        $user       = auth()->user();
-        $storeRules = new StoreRequest()->rules();
-        $itemErrors = [];
+        $user          = auth()->user();
+        $storeRules    = new StoreRequest()->rules();
+        $itemErrors    = [];
+        $createMissing = $this->createMissingArg($request);
 
         // Pre-validate every item up front so we don't open a DB transaction unless every
         // line passes structural checks. Cross-currency + idempotency-key well-formedness
@@ -114,6 +121,12 @@ final class BulkCreateTransactionsTool extends AbstractMcpTool
                 continue;
             }
 
+            if (!$createMissing && [] !== ($missing = $this->missingNames($user, ucfirst($type), $line))) {
+                $itemErrors[] = ['index' => $index, 'errors' => ['missing_names' => $missing]];
+
+                continue;
+            }
+
             $preparedItems[$index] = ['payload' => $payload, 'idempotency_key' => $idempotencyKey];
         }
 
@@ -128,6 +141,7 @@ final class BulkCreateTransactionsTool extends AbstractMcpTool
         $created   = 0;
         $replayed  = 0;
         $documents = [];
+        $newNames  = CreatedEntities::mark($user);
 
         try {
             DB::transaction(function () use ($preparedItems, $user, &$created, &$replayed, &$documents): void {
@@ -192,6 +206,7 @@ final class BulkCreateTransactionsTool extends AbstractMcpTool
                 'transactions' => $documents
             ]
         ];
+        $createdMeta = $this->createdMeta($newNames);
         if (!(bool) $request->get('verbose', false)) {
             $meta  = [];
             $items = [];
@@ -204,6 +219,9 @@ final class BulkCreateTransactionsTool extends AbstractMcpTool
             if ([] !== $meta) {
                 $result['meta'] = $meta;
             }
+        }
+        if ([] !== $createdMeta) {
+            $result['meta'] = [...($result['meta'] ?? []), ...$createdMeta];
         }
 
         return Response::json($result);
@@ -229,7 +247,10 @@ final class BulkCreateTransactionsTool extends AbstractMcpTool
             'budget_name'      => $schema->string()->description('Budget name.'),
             'tags'             => $schema->array()->items($schema->string())->description('Tag ids or names.'),
             'notes'            => $schema->string()->description('Notes.'),
-            'idempotency_key'  => $schema->string()->max(self::MAX_IDEMPOTENCY_KEY_LENGTH)->description('Retry dedup key (printable ASCII, max 128).')
+            'idempotency_key'  => $schema
+                ->string()
+                ->max(self::MAX_IDEMPOTENCY_KEY_LENGTH)
+                ->description('Retry dedup key (printable ASCII, max 128); a replay returns the original.')
         ]);
 
         return [
@@ -240,6 +261,7 @@ final class BulkCreateTransactionsTool extends AbstractMcpTool
                 ->max(self::MAX_ITEMS)
                 ->required()
                 ->description(sprintf('1-%d items; any failure rolls back the batch.', self::MAX_ITEMS)),
+            ...$this->createMissingSchema($schema),
             ...$this->writeOutputSchema($schema)
         ];
     }
