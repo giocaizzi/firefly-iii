@@ -121,7 +121,7 @@ class SetDestinationAccount implements ActionInterface
 
         Log::debug(sprintf('New destination account is #%d ("%s").', $newAccount->id, $newAccount->name));
 
-        event(new TransactionGroupRequestsAuditLogEntry($this->action->rule, $object, 'set_destination', null, $newAccount->name));
+        event(new TransactionGroupRequestsAuditLogEntry($this->action->rule, $object, 'set_destination', $journal['destination_account_name'] ?? null, $newAccount->name));
 
         // update destination transaction with new destination account:
         DB::table('transactions')->where('transaction_journal_id', '=', $object->id)->where('amount', '>', 0)->update(['account_id' => $newAccount->id]);
