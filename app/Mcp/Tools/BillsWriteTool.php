@@ -41,7 +41,7 @@ final class BillsWriteTool extends AbstractApiTool
     {
         return [
             'action' => $schema->string()->enum(['create', 'update', 'delete'])->required(),
-            'id'     => $schema->integer()->description('For update/delete.'),
+            'id'     => $schema->integer(),
             ...$this->writeSchema(
                 $schema,
                 'name, amount_min, amount_max, date, repeat_freq (weekly|monthly|quarterly|half-year|yearly), skip, currency_code, end_date, extension_date, active, notes, object_group_title.'

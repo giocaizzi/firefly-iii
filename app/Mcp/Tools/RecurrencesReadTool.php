@@ -56,9 +56,9 @@ final class RecurrencesReadTool extends AbstractApiTool
     {
         return [
             'action' => $schema->string()->enum(['list', 'get', 'transactions'])->required(),
-            'id'     => $schema->integer()->description('For get/transactions.'),
-            'start'  => $schema->string()->description('transactions: YYYY-MM-DD.'),
-            'end'    => $schema->string()->description('transactions: YYYY-MM-DD.'),
+            'id'     => $schema->integer(),
+            'start'  => $schema->string()->description('For transactions.'),
+            'end'    => $schema->string()->description('For transactions.'),
             ...$this->readSchema($schema)
         ];
     }

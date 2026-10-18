@@ -46,8 +46,8 @@ final class BudgetsWriteTool extends AbstractApiTool
     {
         return [
             'action'    => $schema->string()->enum(['create', 'update', 'delete'])->required(),
-            'kind'      => $schema->string()->enum(array_keys(self::COMPACT))->description('Default budget.'),
-            'id'        => $schema->integer()->description('For update/delete.'),
+            'kind'      => $schema->string()->enum(array_keys(self::COMPACT)),
+            'id'        => $schema->integer(),
             'budget_id' => $schema->integer()->description('Budget of the limit.'),
             ...$this->writeSchema(
                 $schema,

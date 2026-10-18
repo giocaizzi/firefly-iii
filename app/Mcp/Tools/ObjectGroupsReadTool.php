@@ -47,7 +47,7 @@ final class ObjectGroupsReadTool extends AbstractApiTool
     {
         return [
             'action' => $schema->string()->enum(self::ACTIONS)->required(),
-            'id'     => $schema->integer()->description('For get/piggy-banks/bills.'),
+            'id'     => $schema->integer(),
             ...$this->readSchema($schema)
         ];
     }

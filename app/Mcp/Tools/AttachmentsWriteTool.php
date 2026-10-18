@@ -48,7 +48,7 @@ final class AttachmentsWriteTool extends AbstractApiTool
     {
         return [
             'action'         => $schema->string()->enum(['create', 'update', 'delete'])->required(),
-            'id'             => $schema->integer()->description('For update/delete.'),
+            'id'             => $schema->integer(),
             'content_base64' => $schema->string()->description(sprintf('create: file content, max %d KiB.', self::MAX_BYTES / 1024)),
             ...$this->writeSchema(
                 $schema,

@@ -45,7 +45,7 @@ final class AttachmentsReadTool extends AbstractApiTool
     {
         return [
             'action' => $schema->string()->enum(['list', 'get'])->required(),
-            'id'     => $schema->integer()->description('For get.'),
+            'id'     => $schema->integer(),
             ...$this->readSchema($schema)
         ];
     }

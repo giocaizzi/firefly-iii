@@ -41,8 +41,8 @@ final class LinksWriteTool extends AbstractApiTool
     {
         return [
             'action' => $schema->string()->enum(['create', 'update', 'delete'])->required(),
-            'kind'   => $schema->string()->enum(['link', 'type'])->description('Default link.'),
-            'id'     => $schema->integer()->description('For update/delete.'),
+            'kind'   => $schema->string()->enum(['link', 'type']),
+            'id'     => $schema->integer(),
             ...$this->writeSchema($schema, 'link: link_type_id or link_type_name, inward_id, outward_id (journal ids), notes; type: name, inward, outward.')
         ];
     }

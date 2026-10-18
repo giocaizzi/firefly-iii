@@ -58,9 +58,9 @@ final class BillsReadTool extends AbstractApiTool
     {
         return [
             'action' => $schema->string()->enum(['list', 'get', 'transactions'])->required(),
-            'id'     => $schema->integer()->description('For get/transactions.'),
-            'start'  => $schema->string()->description('YYYY-MM-DD.'),
-            'end'    => $schema->string()->description('YYYY-MM-DD.'),
+            'id'     => $schema->integer(),
+            'start'  => $schema->string(),
+            'end'    => $schema->string(),
             ...$this->readSchema($schema)
         ];
     }

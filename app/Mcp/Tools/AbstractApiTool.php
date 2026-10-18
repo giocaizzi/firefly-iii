@@ -259,7 +259,7 @@ abstract class AbstractApiTool extends AbstractMcpTool
     {
         return [
             ...$this->pagingSchema($schema),
-            'fields' => $schema->array()->items($schema->string())->description('Row keys to keep (any attribute).'),
+            'fields' => $schema->array()->items($schema->string())->description('Row keys to keep.'),
             ...$this->compactSchema($schema),
             ...$this->outputFlagsSchema($schema)
         ];
@@ -367,8 +367,8 @@ abstract class AbstractApiTool extends AbstractMcpTool
     protected function writeSchema(JsonSchema $schema, string $dataFields): array
     {
         return [
-            'data'    => $schema->object()->description(sprintf('API v1 body fields: %s', $dataFields)),
-            'confirm' => $schema->boolean()->description('Required to delete something that has dependants.'),
+            'data'    => $schema->object()->description(sprintf('API fields: %s', $dataFields)),
+            'confirm' => $schema->boolean()->description('Confirm deleting with dependants.'),
             ...$this->compactSchema($schema),
             ...$this->outputFlagsSchema($schema)
         ];

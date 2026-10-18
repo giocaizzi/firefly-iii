@@ -60,7 +60,7 @@ final class PiggyBanksReadTool extends AbstractApiTool
     {
         return [
             'action' => $schema->string()->enum(['list', 'get', 'events'])->required(),
-            'id'     => $schema->integer()->description('For get/events.'),
+            'id'     => $schema->integer(),
             ...$this->readSchema($schema)
         ];
     }

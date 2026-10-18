@@ -48,12 +48,12 @@ final class CurrenciesReadTool extends AbstractApiTool
     {
         return [
             'action' => $schema->string()->enum(['list', 'get'])->required(),
-            'kind'   => $schema->string()->enum(array_keys(self::COMPACT))->description('Default currency.'),
+            'kind'   => $schema->string()->enum(array_keys(self::COMPACT)),
             'id'     => $schema->string()->description('get: currency code, or rate id.'),
             'from'   => $schema->string()->description('rate list: from code (with to).'),
             'to'     => $schema->string()->description('rate list: to code.'),
-            'start'  => $schema->string()->description('rate list with from/to: YYYY-MM-DD.'),
-            'end'    => $schema->string()->description('rate list with from/to: YYYY-MM-DD.'),
+            'start'  => $schema->string()->description('rate list with from/to.'),
+            'end'    => $schema->string()->description('rate list with from/to.'),
             ...$this->readSchema($schema)
         ];
     }

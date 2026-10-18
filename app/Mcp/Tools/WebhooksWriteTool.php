@@ -44,7 +44,7 @@ final class WebhooksWriteTool extends AbstractApiTool
     {
         return [
             'action' => $schema->string()->enum(['create', 'update', 'delete'])->required(),
-            'id'     => $schema->integer()->description('For update/delete.'),
+            'id'     => $schema->integer(),
             ...$this->writeSchema(
                 $schema,
                 'title, url, active, triggers, responses, deliveries (lists, e.g. ["STORE_TRANSACTION"], ["TRANSACTIONS"], ["JSON"]; update needs them too).'

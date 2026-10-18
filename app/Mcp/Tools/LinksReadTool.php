@@ -48,8 +48,8 @@ final class LinksReadTool extends AbstractApiTool
     {
         return [
             'action'     => $schema->string()->enum(['list', 'get'])->required(),
-            'kind'       => $schema->string()->enum(array_keys(self::COMPACT))->description('Default link.'),
-            'id'         => $schema->integer()->description('For get.'),
+            'kind'       => $schema->string()->enum(array_keys(self::COMPACT)),
+            'id'         => $schema->integer(),
             'journal_id' => $schema->integer()->description('link list: links of one journal.'),
             ...$this->readSchema($schema)
         ];

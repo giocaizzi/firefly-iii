@@ -51,7 +51,7 @@ final class PiggyBanksWriteTool extends AbstractApiTool
     {
         return [
             'action'     => $schema->string()->enum(self::ACTIONS)->required(),
-            'id'         => $schema->integer()->description('For update/delete/add/remove.'),
+            'id'         => $schema->integer(),
             'account_id' => $schema->integer()->description('add/remove: one of the piggy bank\'s accounts.'),
             'amount'     => $schema->string()->description('add/remove: positive amount.'),
             ...$this->writeSchema(

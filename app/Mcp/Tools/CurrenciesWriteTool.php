@@ -44,7 +44,7 @@ final class CurrenciesWriteTool extends AbstractApiTool
     {
         return [
             'action' => $schema->string()->enum(self::ACTIONS)->required(),
-            'kind'   => $schema->string()->enum(['currency', 'rate'])->description('Default currency.'),
+            'kind'   => $schema->string()->enum(['currency', 'rate']),
             'id'     => $schema->string()->description('Currency code, or rate id.'),
             ...$this->writeSchema($schema, 'currency: code, name, symbol, decimal_places, enabled; rate: from, to (codes), rate, date.')
         ];

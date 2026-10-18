@@ -49,11 +49,11 @@ final class BudgetsReadTool extends AbstractApiTool
     {
         return [
             'action'    => $schema->string()->enum(['list', 'get'])->required(),
-            'kind'      => $schema->string()->enum(array_keys(self::COMPACT))->description('Default budget.'),
-            'id'        => $schema->integer()->description('For get.'),
+            'kind'      => $schema->string()->enum(array_keys(self::COMPACT)),
+            'id'        => $schema->integer(),
             'budget_id' => $schema->integer()->description('Limits of one budget (required to get a limit).'),
-            'start'     => $schema->string()->description('YYYY-MM-DD.'),
-            'end'       => $schema->string()->description('YYYY-MM-DD.'),
+            'start'     => $schema->string(),
+            'end'       => $schema->string(),
             ...$this->readSchema($schema)
         ];
     }

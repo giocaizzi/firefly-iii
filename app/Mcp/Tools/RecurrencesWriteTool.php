@@ -44,8 +44,8 @@ final class RecurrencesWriteTool extends AbstractApiTool
     {
         return [
             'action' => $schema->string()->enum(self::ACTIONS)->required(),
-            'id'     => $schema->integer()->description('For update/delete/trigger.'),
-            'date'   => $schema->string()->description('trigger: YYYY-MM-DD occurrence date.'),
+            'id'     => $schema->integer(),
+            'date'   => $schema->string()->description('trigger: occurrence date.'),
             ...$this->writeSchema(
                 $schema,
                 'type (withdrawal|deposit|transfer), title, first_date, repeat_until or nr_of_repetitions, apply_rules, active, notes, '
