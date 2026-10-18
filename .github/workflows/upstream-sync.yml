@@ -182,7 +182,7 @@ jobs:
         # Runs on every upstream rebase AND on every manual dispatch — so a hand-triggered
         # build of the feature branch is test-gated too, even when no upstream release moved
         # (changed=0). A red suite fails this job, leaving build-and-push (needs:) unmet.
-        run: php vendor/bin/phpunit -c phpunit.xml --no-coverage tests/integration/Api/Mcp
+        run: php -d memory_limit=512M vendor/bin/phpunit -c phpunit.xml --no-coverage tests/integration/Api/Mcp
 
       - name: Promote to feature branch (auto)
         if: steps.gate.outputs.changed != '0'
