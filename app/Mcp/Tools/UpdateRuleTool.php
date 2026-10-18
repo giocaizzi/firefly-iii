@@ -24,6 +24,8 @@ declare(strict_types=1);
 
 namespace FireflyIII\Mcp\Tools;
 
+use FireflyIII\Mcp\Support\HtmlText;
+use FireflyIII\Mcp\Tools\Concerns\ShapesRules;
 use FireflyIII\Models\Rule;
 use FireflyIII\Repositories\Rule\RuleRepositoryInterface;
 use FireflyIII\Support\Request\GetRuleConfiguration;
@@ -49,12 +51,13 @@ use function Safe\json_encode;
  * deletes and recreates them), mirroring the REST API's update semantics. Only the
  * fields present in the request are touched; omitted fields are left as-is.
  */
-#[Description('Update an existing rule (title, flags, triggers, actions). Passing triggers/actions replaces the existing set; omitted fields are left unchanged.')]
+#[Description('Update a rule. Only passed fields change; triggers/actions replace the whole set.')]
 #[IsDestructive]
 #[IsIdempotent]
 final class UpdateRuleTool extends AbstractMcpTool
 {
     use GetRuleConfiguration;
+    use ShapesRules;
 
     public function handle(Request $request): Response
     {
@@ -76,7 +79,9 @@ final class UpdateRuleTool extends AbstractMcpTool
 
         $data = $this->buildUpdateData($input);
         if ([] === $data) {
-            return Response::error('Nothing to update: provide at least one of title, description, active, strict, stop_processing, trigger, triggers, actions.');
+            return Response::error(
+                'Nothing to update: provide at least one of title, description, active, strict, stop_processing, trigger, triggers, actions.'
+            );
         }
 
         if (null !== ($invalid = $this->validateData($data))) {
@@ -112,32 +117,41 @@ final class UpdateRuleTool extends AbstractMcpTool
     public function schema(JsonSchema $schema): array
     {
         $trigger = $schema->object([
-            'type'            => $schema->string()->required()->description('Trigger type, e.g. "description_contains", "amount_more".'),
-            'value'           => $schema->string()->description('Trigger value (required by most trigger types).'),
-            'prohibited'      => $schema->boolean()->description('Negate the trigger (NOT).'),
-            'active'          => $schema->boolean()->description('Whether this trigger is active (default true).'),
-            'stop_processing' => $schema->boolean()->description('Stop evaluating further triggers once this one matches.')
+            'type'            => $schema->string()->required()->description('e.g. description_contains.'),
+            'value'           => $schema->string()->description('Value.'),
+            'prohibited'      => $schema->boolean()->description('Negate.'),
+            'active'          => $schema->boolean()->description('Default true.'),
+            'stop_processing' => $schema->boolean()->description('Stop after a match.')
         ]);
-        $action  = $schema->object([
-            'type'            => $schema->string()->required()->description('Action type, e.g. "set_category", "convert_transfer".'),
-            'value'           => $schema->string()->description('Action value (required by most action types).'),
-            'active'          => $schema->boolean()->description('Whether this action is active (default true).'),
-            'stop_processing' => $schema->boolean()->description('Stop running further actions once this one runs.')
+        $action = $schema->object([
+            'type'            => $schema->string()->required()->description('e.g. set_category.'),
+            'value'           => $schema->string()->description('Value.'),
+            'active'          => $schema->boolean()->description('Default true.'),
+            'stop_processing' => $schema->boolean()->description('Stop after this action.')
         ]);
 
         return [
-            'rule_id'         => $schema->integer()->required()->description('Numeric ID of the rule to update.'),
-            'title'           => $schema->string()->description('New rule title (1-100 chars).'),
-            'description'     => $schema->string()->description('New rule description.'),
-            'active'          => $schema->boolean()->description('Enable or disable the rule.'),
-            'strict'          => $schema->boolean()->description('Strict mode: all triggers must match (true) vs any (false).'),
-            'stop_processing' => $schema->boolean()->description('Stop processing later rules in the group once this rule fires.'),
-            'trigger'         => $schema->string()->enum(['store-journal', 'update-journal', 'manual-activation'])->description('When the rule fires.'),
-            'triggers'        => $schema->array()->items($trigger)->description('Replace the rule triggers with this set.'),
-            'actions'         => $schema->array()->items($action)->description('Replace the rule actions with this set.'),
-            'verbose'         => $schema->boolean()->description('Return the full JSON:API document instead of the reduced shape.'),
-            'include_nulls'   => $schema->boolean()->description('Keep null attribute values in the reduced shape.')
+            'rule_id'         => $schema->integer()->required()->description('Rule id.'),
+            'title'           => $schema->string()->description('1-100 chars.'),
+            'description'     => $schema->string()->description('Description.'),
+            'active'          => $schema->boolean()->description('Active.'),
+            'strict'          => $schema->boolean()->description('true = all triggers must match, false = any.'),
+            'stop_processing' => $schema->boolean()->description('Stop later rules in the group after this one fires.'),
+            'trigger'         => $schema->string()->enum(['store-journal', 'update-journal', 'manual-activation'])->description('When it fires.'),
+            'triggers'        => $schema->array()->items($trigger)->description('Replaces all triggers.'),
+            'actions'         => $schema->array()->items($action)->description('Replaces all actions.'),
+            ...$this->outputFlagsSchema($schema)
         ];
+    }
+
+    private function auditFailure(string $stage, string $message): void
+    {
+        Log::channel('audit')->error('MCP write failed', [
+            'tool'      => $this->name(),
+            'user_id'   => auth()->id(),
+            'stage'     => $stage,
+            'exception' => $message
+        ]);
     }
 
     /**
@@ -155,7 +169,8 @@ final class UpdateRuleTool extends AbstractMcpTool
             $data['title'] = (string) $input['title'];
         }
         if (array_key_exists('description', $input)) {
-            $data['description'] = (string) $input['description'];
+            // Rule::description escapes on set; decode first so an escaped value read back is not escaped twice.
+            $data['description'] = HtmlText::decode((string) $input['description']);
         }
         foreach (['active', 'strict', 'stop_processing'] as $flag) {
             if (array_key_exists($flag, $input)) {
@@ -194,13 +209,13 @@ final class UpdateRuleTool extends AbstractMcpTool
      */
     private function validateData(array $data): null|Response
     {
-        $rules     = [
-            'title'                      => 'min:1|max:100',
-            'description'                => ['nullable', 'max:32768'],
-            'triggers.*.type'            => 'required|in:'.implode(',', $this->getTriggers()),
-            'triggers.*.value'           => 'nullable|max:1024',
-            'actions.*.type'             => 'required|in:'.implode(',', array_keys((array) config('firefly.rule-actions'))),
-            'actions.*.value'            => 'nullable|max:1024'
+        $rules = [
+            'title'            => 'min:1|max:100',
+            'description'      => ['nullable', 'max:32768'],
+            'triggers.*.type'  => 'required|in:' . implode(',', $this->getTriggers()),
+            'triggers.*.value' => 'nullable|max:1024',
+            'actions.*.type'   => 'required|in:' . implode(',', array_keys((array) config('firefly.rule-actions'))),
+            'actions.*.value'  => 'nullable|max:1024'
         ];
         $validator = Validator::make($data, $rules);
         if ($validator->fails()) {
@@ -208,15 +223,5 @@ final class UpdateRuleTool extends AbstractMcpTool
         }
 
         return null;
-    }
-
-    private function auditFailure(string $stage, string $message): void
-    {
-        Log::channel('audit')->error('MCP write failed', [
-            'tool'      => $this->name(),
-            'user_id'   => auth()->id(),
-            'stage'     => $stage,
-            'exception' => $message
-        ]);
     }
 }
