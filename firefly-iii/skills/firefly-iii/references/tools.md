@@ -76,6 +76,19 @@ Invalid arguments return `{"error":"invalid_argument","field":..,"message":..}`.
 - Setting any of `group_by`, the category lists or `rows` implies `aggregate: true`
 - `totals: [{ currency, count, withdrawal, deposit, transfer?, net }]` — positive sums per type in the transaction's currency; `net` = deposit − withdrawal
 
+### `match-transactions`
+Matches rows the caller already parsed (no file parsing, no provider logic) against stored transactions. Read-only.
+- `rows: array` (1-200, required) — each `{ ref?, date, amount, direction?: in|out, currency?, account?, description?, external_id? }`. `amount` is signed on the account (negative = money out); `direction` signs an unsigned amount. `account` (id or exact name) overrides the scope for that row. `description` only breaks ties.
+- `account?: string`, `accounts?: string[]` — scope (ids or names); default every asset account
+- `date_window_days?: int` — default 0 (same day), max 90
+- `amount_tolerance?: decimal` — default 0
+- `types?: string[]` — default `withdrawal, deposit, transfer`
+- `reference_field?: external_id|internal_reference` — compared with the row's `external_id` (default `external_id`)
+- Plus the transaction output flags (`fields`, `description_max`, `compact`, `verbose`, `include_nulls`)
+- A row with a known reference matches on it (any date or amount). Otherwise it matches the account leg with the same signed amount (±tolerance) inside the window; with `currency`, the leg's currency is compared on `amount` and its foreign currency on `foreign_amount`.
+- One-to-one: a transaction is claimed by at most one row. A row is `matched` only when its best candidate (closest date, then smallest amount difference, then description) is unique and no other row ranks that candidate as well; ties are `ambiguous`.
+- Response: `{ data: [{ ref, status, basis?, journal_id?, transaction?, candidates?: [{ basis, transaction }], candidate_count? }], meta: { primary_currency, matched, ambiguous, unmatched } }`. `basis` is `{ by: external_id }` or `{ by: amount, account_id, date_distance_days, amount_difference?, amount_field?, description_match? }`; candidates are capped at 5 (`candidate_count` gives the total when more).
+
 ## Read — power-user
 
 ### `list-bills`
@@ -193,9 +206,12 @@ Returns a plain-text confirmation. Marked `IsDestructive` (NOT idempotent — a 
 ### `bulk-create-transactions`
 - `transactions: array<TransactionSpec>` (max 100 items, required)
   - Each item: `type: enum` ∈ `{withdrawal, deposit, transfer}` + the full create-* spec
-  - Each item may carry its own `idempotency_key`
+  - Each item may carry its own `idempotency_key` and `external_id`
+- `dry_run?: bool` — default false. Validates and returns the plan without writing: `{ data: { dry_run: true, would_create, would_replay, would_skip, total, items: [{ index, action: create|replay|skip, transaction_id?, reason?, transaction_ids?, duplicate? }] } }`
+- `skip_duplicates?: bool` — default false. Leaves out items that already exist; the response adds `skipped` and `skipped_items: [{ index, reason, transaction_ids }]`
+- `duplicate_check?: external_id|amount_date_account` — default `external_id` (same external id). `amount_date_account` also flags an existing transaction with the same signed amount on the item's asset account (source for withdrawals/transfers, destination for deposits) within `date_window_days` (default 0); ties are reported as `possible_duplicate` and skipped too
 - All-or-nothing inside a single DB transaction. Any validation failure aborts; zero inserts.
-- Response: `{ data: { created, replayed, total, transactions: [{ index, replayed, transaction }] }, meta: { primary_currency } }` with a compact row per item; `verbose: true` returns `[{ index, replayed, document }]` with the raw JSON:API document per item.
+- Response: `{ data: { created, replayed, total, transactions: [{ index, replayed, transaction }] }, meta: { primary_currency } }` with a compact row per item; `verbose: true` returns `[{ index, replayed, document }]` with the raw JSON:API document per item. Without the import options the call behaves exactly as before.
 
 - After a timeout, resend the same batch with the same keys: committed items replay (`replayed: true`, original transaction), nothing is duplicated.
 

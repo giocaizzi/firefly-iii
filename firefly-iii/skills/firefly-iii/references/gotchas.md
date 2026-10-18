@@ -56,6 +56,14 @@ Edge cases and known quirks. Skim once; come back when something behaves unexpec
 - All-or-nothing: a single item failure rolls back the whole batch (zero inserts).
 - Error response shape: `{ errors: [{ index, errors: { field: [messages] } }, ...] }` — the `index` matches the position in the input array.
 - Each item can carry its own `idempotency_key`. If item 5 in a batch was successfully created in a prior partial-retry attempt (impossible under all-or-nothing, but theoretically with future server changes), its key gates the replay.
+- `dry_run` and `skip_duplicates` are off by default. An idempotent replay wins over a duplicate skip. With `duplicate_check=amount_date_account`, two items that tie for one existing transaction are both reported `possible_duplicate` and both skipped — check the dry-run plan before writing.
+
+## Matching external rows
+
+- `match-transactions` takes structured rows only; parsing a statement and choosing references is the caller's job.
+- Amounts are signed from the account's point of view: a withdrawal matches a negative row amount, a deposit a positive one. A transfer between two scoped accounts matches on the side whose sign agrees.
+- A row with an `external_id` that matches nothing falls back to amount + date + account matching.
+- Ties are never broken arbitrarily: identical rows against identical transactions come back `ambiguous`.
 
 ## Aggregate-tool response shape
 

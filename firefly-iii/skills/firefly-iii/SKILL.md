@@ -1,6 +1,6 @@
 ---
 name: firefly-iii
-description: Use this skill whenever the user asks anything about their personal finances, money, spending, income, account balances, budgets, categories, savings goals, recurring bills, transaction history, or financial reports — even if they don't say "Firefly" by name. Phrases like "how much did I spend on...", "what's my balance", "log a transaction", "how am I doing this month", "show me my expenses", "did the rent come out", "categorize these", "set up a budget" all trigger this skill. The skill teaches the assistant how to drive the Firefly III MCP server (62 tools + 9 resources) to answer finance questions and make changes. Use this skill BEFORE making generic suggestions or guessing — Firefly is the user's source of truth for personal finance data.
+description: Use this skill whenever the user asks anything about their personal finances, money, spending, income, account balances, budgets, categories, savings goals, recurring bills, transaction history, or financial reports — even if they don't say "Firefly" by name. Phrases like "how much did I spend on...", "what's my balance", "log a transaction", "how am I doing this month", "show me my expenses", "did the rent come out", "categorize these", "set up a budget" all trigger this skill. The skill teaches the assistant how to drive the Firefly III MCP server (63 tools + 9 resources) to answer finance questions and make changes. Use this skill BEFORE making generic suggestions or guessing — Firefly is the user's source of truth for personal finance data.
 ---
 
 # Firefly III — operating the MCP endpoint
@@ -14,7 +14,7 @@ Seven categories. Knowing the shape helps you pick the right tool fast.
 | Category | Tools | When to reach for it |
 |---|---|---|
 | **Read — core entities** | `list-accounts`, `get-account`, `list-transactions`, `get-transaction`, `list-budgets`, `get-budget`, `list-categories`, `get-category`, `list-tags`, `get-tag` | Direct lookups: "what accounts do I have", "show that transaction from yesterday", "list my categories" |
-| **Read — search** | `search-transactions` | Free-text or operator search: "find that Amazon refund", "transactions with note 'tax 2025'" |
+| **Read — search** | `search-transactions`, `match-transactions` | Free-text or operator search: "find that Amazon refund", "transactions with note 'tax 2025'"; matching already-parsed statement rows to existing transactions |
 | **Read — power-user** | `list-bills`, `list-rules`, `get-rule`, `list-rule-groups`, `test-rule`, `list-piggy-banks`, `list-webhooks`, `get-audit-log`, `health` | Recurring bills, transaction rules, savings targets, integrations; `health` checks versions, features and write access |
 | **Read — aggregates** | `summary-basic`, `insight-expense`, `insight-income`, `chart-data`, `account-balance`, plus `aggregate: true` on `search-transactions` / `list-transactions` and `with_stats: true` on tags | "How am I doing this month", "spending by category", "balance over time" — **prefer these over computing aggregates yourself** from `list-transactions` |
 | **Write** | `create-withdrawal`, `create-deposit`, `create-transfer`, `update-transaction`, `delete-transaction`, `bulk-create-transactions`, `classify-transactions` | Logging new transactions, fixing categorization, removing duplicates, importing batches; `classify-transactions` recategorizes many at once |
@@ -101,7 +101,16 @@ bulk-create-transactions transactions=[ {item}, {item}, ... ]
 
 - All-or-nothing: a single validation failure aborts the whole batch (zero inserts). Pre-validate aggressively before submitting.
 - Max 100 items per call. Chunk larger sets.
-- Each item can carry its own `idempotency_key` so retries don't duplicate.
+- Each item can carry its own `idempotency_key` so retries don't duplicate, and an `external_id` (stored on the journal).
+
+### Recipe: Importing a statement without duplicates
+
+Parse the file yourself; the server only takes structured rows. Then:
+
+1. `match-transactions rows=[{ref, date, amount (signed: negative = out), currency?, account?, external_id?}] date_window_days=N` — each row comes back `matched` / `ambiguous` / `unmatched`; one Firefly transaction is claimed by at most one row.
+2. `bulk-create-transactions` for the unmatched rows with `dry_run=true skip_duplicates=true` (add `duplicate_check=amount_date_account date_window_days=N` when the rows have no external id) — returns the plan without writing.
+3. Show the plan, including `ambiguous` rows, and wait for confirmation.
+4. Repeat the call without `dry_run`, then read back with `list-transactions` or `match-transactions`.
 
 ### Recipe: Recategorizing a batch safely
 
