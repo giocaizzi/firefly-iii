@@ -55,7 +55,7 @@ use function Safe\json_encode;
  * at the end with totals. Failures are logged at `error` with the offending index.
  */
 #[Description(
-    'Create up to 100 withdrawals/deposits/transfers atomically. After a timeout, resend the same batch with the same idempotency_keys: committed items replay their original transaction (replayed=true), nothing is duplicated.'
+    'Create up to 100 withdrawals/deposits/transfers atomically. After a timeout, resend with the same idempotency_keys: committed items replay, none duplicate.'
 )]
 #[IsDestructive(false)]
 final class BulkCreateTransactionsTool extends AbstractMcpTool

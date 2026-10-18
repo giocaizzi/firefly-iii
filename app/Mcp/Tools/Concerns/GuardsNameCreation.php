@@ -68,7 +68,7 @@ trait GuardsNameCreation
         return [
             'create_missing' => $schema
                 ->boolean()
-                ->description('Default true: unknown account/category/tag names are created and listed in meta.created. false = error instead.')
+                ->description('false = error on unknown account/category/tag names instead of creating them (see meta.created).')
         ];
     }
 

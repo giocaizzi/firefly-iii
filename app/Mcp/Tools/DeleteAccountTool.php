@@ -44,9 +44,7 @@ use Throwable;
  * accounts into the correct one without losing history. Deleting an account that still has
  * transactions without a move target requires `delete_transactions=true`.
  */
-#[Description(
-    'Delete an account. With move_to_account_id its transactions move there first (merge); without it they are deleted, which requires delete_transactions=true when it has any.'
-)]
+#[Description('Delete an account. move_to_account_id merges its transactions first; otherwise deleting them needs delete_transactions=true.')]
 #[IsDestructive]
 final class DeleteAccountTool extends AbstractMcpTool
 {
@@ -126,9 +124,7 @@ final class DeleteAccountTool extends AbstractMcpTool
         return [
             'account_id'          => $schema->integer()->required()->description('Account id.'),
             'move_to_account_id'  => $schema->integer()->description('Account that receives the transactions first (merge).'),
-            'delete_transactions' => $schema
-                ->boolean()
-                ->description('Without move_to_account_id: true = also delete its transactions (required when it has any).')
+            'delete_transactions' => $schema->boolean()->description('true = also delete its transactions.')
         ];
     }
 }

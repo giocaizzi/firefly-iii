@@ -43,7 +43,7 @@ use function Safe\preg_match;
  * `mcp.build` is the MCP build identifier: config `mcp.build` (env MCP_BUILD), else the git
  * commit of the checkout when a `.git` directory is present, else omitted.
  */
-#[Description('Server self-check: Firefly III and MCP build version, authenticated user, enabled features, and whether this connection can write.')]
+#[Description('Versions, user, enabled features and write access.')]
 #[IsReadOnly]
 #[IsIdempotent]
 final class HealthTool extends AbstractMcpTool

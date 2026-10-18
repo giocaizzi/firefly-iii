@@ -146,7 +146,7 @@ final class UpdateTransactionTool extends AbstractMcpTool
             'tags'             => $schema->array()->items($schema->string())->description('Replaces all tags.'),
             'notes'            => $schema->string()->description('Replaces notes.'),
             ...$this->classificationEditSchema($schema),
-            'if_unmodified_since' => $schema->string()->description('updated_at you last read; a newer change returns a conflict error, nothing is written.'),
+            'if_unmodified_since' => $schema->string()->description('updated_at you read; newer = conflict, no write.'),
             ...$this->createMissingSchema($schema),
             ...$this->writeOutputSchema($schema)
         ];

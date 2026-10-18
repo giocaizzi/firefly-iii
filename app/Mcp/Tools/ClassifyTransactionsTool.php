@@ -65,7 +65,7 @@ use function Safe\json_encode;
  * is a per-row conflict and is not written.
  */
 #[Description(
-    'Bulk-edit classification (category, budget, bill, tags, notes, expense/revenue account) of up to 200 transactions by ids or query. dry_run defaults to true and previews before/after; amounts, dates, currencies, asset accounts and types are never changed.'
+    'Set category/budget/bill/tags/notes/expense-revenue account on up to 200 transactions (ids or query). dry_run (default true) previews before/after.'
 )]
 #[IsDestructive(false)]
 final class ClassifyTransactionsTool extends AbstractMcpTool
@@ -212,12 +212,12 @@ final class ClassifyTransactionsTool extends AbstractMcpTool
                 ->array()
                 ->items($schema->integer())
                 ->max(self::MAX_TARGETS)
-                ->description(sprintf('Transaction (group) ids, max %d. Or use query.', self::MAX_TARGETS)),
-            'query'               => $schema->string()->description('Search query selecting the targets (see firefly-iii://help/search).'),
+                ->description(sprintf('Group ids, max %d (or query).', self::MAX_TARGETS)),
+            'query'               => $schema->string()->description('Search query (or ids).'),
             'limit'               => $schema
                 ->integer()
-                ->description(sprintf('Query cap, default %d, max %d; more matches is an error.', self::DEFAULT_QUERY_LIMIT, self::MAX_TARGETS)),
-            'dry_run'             => $schema->boolean()->description('Default true: preview only. false = apply.'),
+                ->description(sprintf('Query cap, default %d, max %d; more matches = error.', self::DEFAULT_QUERY_LIMIT, self::MAX_TARGETS)),
+            'dry_run'             => $schema->boolean()->description('false = apply.'),
             'category_id'         => $schema->integer()->description('Category id.'),
             'category_name'       => $schema->string()->description('Category name.'),
             'budget_id'           => $schema->integer()->description('Budget id (withdrawals).'),
@@ -226,10 +226,10 @@ final class ClassifyTransactionsTool extends AbstractMcpTool
             'bill_name'           => $schema->string()->description('Exact bill name (withdrawals).'),
             'tags'                => $schema->array()->items($schema->string())->description('Replaces all tags.'),
             'notes'               => $schema->string()->description('Replaces notes ("" clears).'),
-            'append_notes'        => $schema->string()->description('Appended to the notes on a new line.'),
+            'append_notes'        => $schema->string()->description('Appended on a new line.'),
             'destination_name'    => $schema->string()->description('Expense account of withdrawals.'),
             'source_name'         => $schema->string()->description('Revenue account of deposits.'),
-            'if_unmodified_since' => $schema->object()->description('{"<id>": "<updated_at you read>"}; a newer change is a per-row conflict.'),
+            'if_unmodified_since' => $schema->object()->description('{"<id>": "<updated_at>"}; newer = conflict.'),
             ...$this->classificationEditSchema($schema),
             ...$this->createMissingSchema($schema)
         ];
