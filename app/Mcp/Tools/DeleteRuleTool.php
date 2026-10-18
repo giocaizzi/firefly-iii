@@ -37,7 +37,7 @@ use Throwable;
 /**
  * Permanently delete a rule (and its triggers and actions) by its id.
  */
-#[Description('Delete a rule by its id. The rule and all of its triggers and actions are permanently removed.')]
+#[Description('Permanently delete a rule with its triggers and actions.')]
 #[IsDestructive]
 final class DeleteRuleTool extends AbstractMcpTool
 {
@@ -87,7 +87,7 @@ final class DeleteRuleTool extends AbstractMcpTool
     public function schema(JsonSchema $schema): array
     {
         return [
-            'rule_id' => $schema->integer()->required()->description('Numeric ID of the rule to delete.')
+            'rule_id' => $schema->integer()->required()->description('Rule id.')
         ];
     }
 }

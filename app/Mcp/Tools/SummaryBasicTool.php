@@ -26,6 +26,7 @@ namespace FireflyIII\Mcp\Tools;
 
 use Carbon\Carbon;
 use FireflyIII\Mcp\Support\Aggregates\SummaryBasic;
+use FireflyIII\Mcp\Support\JsonApiReducer;
 use FireflyIII\User;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Laravel\Mcp\Request;
@@ -34,7 +35,7 @@ use Laravel\Mcp\Server\Attributes\Description;
 use Laravel\Mcp\Server\Tools\Annotations\IsIdempotent;
 use Laravel\Mcp\Server\Tools\Annotations\IsReadOnly;
 
-#[Description('Dashboard digest: balance/spent/earned/bills/left-to-spend/net-worth per currency. Defaults to the current month.')]
+#[Description('Per-currency balance, spent, earned, bills, left-to-spend and net worth. Default: current month.')]
 #[IsReadOnly]
 #[IsIdempotent]
 final class SummaryBasicTool extends AbstractMcpTool
@@ -51,7 +52,7 @@ final class SummaryBasicTool extends AbstractMcpTool
         $data    = $summary->build($user, $start, $end);
 
         return Response::json([
-            'data' => $data,
+            'data' => $this->includeNulls($request) ? $data : JsonApiReducer::prune($data),
             'meta' => [
                 'start' => $start->format('Y-m-d'),
                 'end'   => $end->format('Y-m-d')
@@ -65,16 +66,10 @@ final class SummaryBasicTool extends AbstractMcpTool
     public function schema(JsonSchema $schema): array
     {
         return [
-            'start'         => $schema
-                ->string()
-                ->format('date')
-                ->description('Inclusive start date (YYYY-MM-DD); defaults to the first day of the current month.'),
-            'end'           => $schema
-                ->string()
-                ->format('date')
-                ->description('Inclusive end date (YYYY-MM-DD); defaults to the last day of the current month.'),
-            'verbose'       => $schema->boolean()->description('Has no structural effect for this tool; included for API symmetry.'),
-            'include_nulls' => $schema->boolean()->description('Preserve null-valued attributes in the output.')
+            'start'         => $schema->string()->format('date')->description('From date (YYYY-MM-DD); default: start of month.'),
+            'end'           => $schema->string()->format('date')->description('To date (YYYY-MM-DD); default: end of month.'),
+            'verbose'       => $schema->boolean()->description('No effect here.'),
+            'include_nulls' => $schema->boolean()->description('Keep null values.')
         ];
     }
 

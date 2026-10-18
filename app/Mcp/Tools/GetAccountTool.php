@@ -36,7 +36,7 @@ use Laravel\Mcp\Server\Tools\Annotations\IsIdempotent;
 use Laravel\Mcp\Server\Tools\Annotations\IsReadOnly;
 use League\Fractal\Resource\Item;
 
-#[Description('Get a single account by id or name. Provide either `id` or `name`; `id` wins when both are supplied.')]
+#[Description('Get an account by id or name.')]
 #[IsReadOnly]
 #[IsIdempotent]
 final class GetAccountTool extends AbstractMcpTool
@@ -80,10 +80,9 @@ final class GetAccountTool extends AbstractMcpTool
     public function schema(JsonSchema $schema): array
     {
         return [
-            'id'            => $schema->integer()->description('Account id. Wins over `name` when both are supplied.'),
-            'name'          => $schema->string()->description('Exact account name; used when `id` is omitted.'),
-            'verbose'       => $schema->boolean()->description('Return the raw JSON:API document instead of the reduced shape.'),
-            'include_nulls' => $schema->boolean()->description('Preserve null-valued attributes in the reduced output.')
+            'id'   => $schema->integer()->description('Account id (wins over name).'),
+            'name' => $schema->string()->description('Exact name.'),
+            ...$this->outputFlagsSchema($schema)
         ];
     }
 }

@@ -26,6 +26,7 @@ namespace FireflyIII\Mcp\Tools;
 
 use Carbon\Carbon;
 use FireflyIII\Mcp\Support\Aggregates\ChartData;
+use FireflyIII\Mcp\Support\JsonApiReducer;
 use FireflyIII\User;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Laravel\Mcp\Request;
@@ -34,7 +35,7 @@ use Laravel\Mcp\Server\Attributes\Description;
 use Laravel\Mcp\Server\Tools\Annotations\IsIdempotent;
 use Laravel\Mcp\Server\Tools\Annotations\IsReadOnly;
 
-#[Description('Chart data for one of three lean chart types: account_balances, category_expenses, or budget_vs_actual.')]
+#[Description('Chart series: account_balances, category_expenses or budget_vs_actual.')]
 #[IsReadOnly]
 #[IsIdempotent]
 final class ChartDataTool extends AbstractMcpTool
@@ -63,7 +64,7 @@ final class ChartDataTool extends AbstractMcpTool
         };
 
         return Response::json([
-            'data' => $rows,
+            'data' => $this->includeNulls($request) ? $rows : JsonApiReducer::prune($rows),
             'meta' => [
                 'chart_type' => $type,
                 'start'      => $start->format('Y-m-d'),
@@ -78,15 +79,11 @@ final class ChartDataTool extends AbstractMcpTool
     public function schema(JsonSchema $schema): array
     {
         return [
-            'chart_type'    => $schema
-                ->string()
-                ->required()
-                ->enum(['account_balances', 'category_expenses', 'budget_vs_actual'])
-                ->description('Which chart payload to return.'),
-            'start'         => $schema->string()->format('date')->required()->description('Inclusive start date (YYYY-MM-DD).'),
-            'end'           => $schema->string()->format('date')->required()->description('Inclusive end date (YYYY-MM-DD).'),
-            'verbose'       => $schema->boolean()->description('Has no structural effect for this tool; included for API symmetry.'),
-            'include_nulls' => $schema->boolean()->description('Preserve null-valued attributes in the reduced output.')
+            'chart_type'    => $schema->string()->required()->enum(['account_balances', 'category_expenses', 'budget_vs_actual'])->description('Chart type.'),
+            'start'         => $schema->string()->format('date')->required()->description('From date, inclusive (YYYY-MM-DD).'),
+            'end'           => $schema->string()->format('date')->required()->description('To date, inclusive (YYYY-MM-DD).'),
+            'verbose'       => $schema->boolean()->description('No effect here.'),
+            'include_nulls' => $schema->boolean()->description('Keep null values.')
         ];
     }
 
