@@ -122,10 +122,7 @@ final class BulkCreateTransactionsTool extends AbstractMcpTool
                 continue;
             }
 
-            $line = $this->buildTransactionLine($type, $item);
-            if (null !== ($item['external_id'] ?? null)) {
-                $line['external_id'] = (string) $item['external_id'];
-            }
+            $line    = $this->buildTransactionLine($type, $item, sprintf('transactions.%s.', $index));
             $payload = ['transactions' => [$line]];
             $errors  = $this->collectValidationErrors($payload, $storeRules);
             if ([] !== $errors) {
@@ -283,7 +280,7 @@ final class BulkCreateTransactionsTool extends AbstractMcpTool
             'tags'             => $schema->array()->items($schema->string())->description('Tag ids or names.'),
             'notes'            => $schema->string()->description('Notes.'),
             'idempotency_key'  => $schema->string()->max(self::MAX_IDEMPOTENCY_KEY_LENGTH)->description('Retry dedup key (printable ASCII, max 128); a replay returns the original.'),
-            'external_id'      => $schema->string()->description('External id.')
+            ...$this->optionalLineSchema($schema)
         ]);
 
         return [

@@ -145,6 +145,7 @@ final class UpdateTransactionTool extends AbstractMcpTool
             'budget_name'      => $schema->string()->description('Budget name.'),
             'tags'             => $schema->array()->items($schema->string())->description('Replaces all tags.'),
             'notes'            => $schema->string()->description('Replaces notes.'),
+            ...$this->optionalLineSchema($schema),
             ...$this->classificationEditSchema($schema),
             'if_unmodified_since' => $schema->string()->description('updated_at you read; newer = conflict, no write.'),
             ...$this->createMissingSchema($schema),
@@ -162,7 +163,7 @@ final class UpdateTransactionTool extends AbstractMcpTool
      */
     private function buildUpdateLine(array $input, TransactionJournal $journal): array
     {
-        $line = ['transaction_journal_id' => (int) $journal->id];
+        $line = ['transaction_journal_id' => (int) $journal->id, ...$this->optionalLineFields($input)];
         $map  = [
             'amount'           => 'string',
             'date'             => 'string',

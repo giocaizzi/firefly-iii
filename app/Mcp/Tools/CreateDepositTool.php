@@ -64,6 +64,7 @@ final class CreateDepositTool extends AbstractMcpTool
             'category_name'    => $schema->string()->description('Category name (created if missing).'),
             'tags'             => $schema->array()->items($schema->string())->description('Tag names or ids.'),
             'notes'            => $schema->string()->description('Notes.'),
+            ...$this->optionalLineSchema($schema),
             'idempotency_key'  => $schema
                 ->string()
                 ->max(self::MAX_IDEMPOTENCY_KEY_LENGTH)

@@ -28,6 +28,7 @@ use Carbon\Carbon;
 use FireflyIII\Api\V1\Requests\Models\Transaction\StoreRequest;
 use FireflyIII\Helpers\Collector\GroupCollectorInterface;
 use FireflyIII\Mcp\Support\CreatedEntities;
+use FireflyIII\Mcp\Support\InvalidArgument;
 use FireflyIII\Models\TransactionGroup;
 use FireflyIII\Models\TransactionJournal;
 use FireflyIII\Models\TransactionJournalMeta;
@@ -36,6 +37,7 @@ use FireflyIII\Repositories\TransactionGroup\TransactionGroupRepositoryInterface
 use FireflyIII\Support\JsonApi\Enrichments\TransactionGroupEnrichment;
 use FireflyIII\Transformers\TransactionGroupTransformer;
 use FireflyIII\User;
+use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Laravel\Mcp\Request;
@@ -60,6 +62,12 @@ trait WritesTransactions
     public const string IDEMPOTENCY_META_NAME = 'mcp_idempotency_key';
 
     public const int MAX_IDEMPOTENCY_KEY_LENGTH = 128;
+
+    /** Optional Firefly journal dates, accepted in the same formats as `date`. */
+    public const array OPTIONAL_DATE_FIELDS = ['book_date', 'process_date', 'interest_date', 'due_date', 'payment_date', 'invoice_date'];
+
+    /** Optional Firefly line fields passed through as strings. */
+    public const array OPTIONAL_STRING_FIELDS = ['external_id', 'internal_reference', 'currency_code', 'foreign_amount', 'foreign_currency_code'];
 
     /**
      * Audit-log a write failure — no payload, just the stage and exception message.
@@ -121,8 +129,13 @@ trait WritesTransactions
      *
      * @return array<string, mixed>
      */
-    protected function buildTransactionLine(string $type, array $input): array
+    protected function buildTransactionLine(string $type, array $input, string $fieldPrefix = ''): array
     {
+        $optional = $this->optionalLineFields($input, $fieldPrefix);
+        if (array_key_exists('foreign_amount', $optional) && !array_key_exists('foreign_currency_code', $optional) && !array_key_exists('foreign_currency_id', $optional)) {
+            InvalidArgument::fail($fieldPrefix . 'foreign_currency_code', 'foreign_amount needs foreign_currency_code or foreign_currency_id.');
+        }
+
         $line = [
             'type'             => $type,
             'date'             => $this->parseLineDate($input['date'] ?? null),
@@ -138,11 +151,73 @@ trait WritesTransactions
             'budget_name'      => array_key_exists('budget_name', $input) ? (string) $input['budget_name'] : null,
             'notes'            => array_key_exists('notes', $input) ? (string) $input['notes'] : null,
             'tags'             => $this->normaliseTags($input['tags'] ?? null),
-            'reconciled'       => false
+            'reconciled'       => false,
+            ...$optional
         ];
 
         // strip null entries to leave the FormRequest's defaults intact.
         return array_filter($line, static fn(mixed $value): bool => null !== $value);
+    }
+
+    /**
+     * Map the optional Firefly passthrough fields (meta dates, references, currencies) present in `$input`.
+     *
+     * Dates go through `parseLineDate()` like `date`; an unparseable value is an invalid_argument on
+     * `$fieldPrefix . <field>`. Everything else is left to the FormRequest rules.
+     *
+     * @param array<string, mixed> $input
+     *
+     * @return array<string, mixed>
+     */
+    protected function optionalLineFields(array $input, string $fieldPrefix = ''): array
+    {
+        $line = [];
+        foreach (self::OPTIONAL_DATE_FIELDS as $field) {
+            $value = $input[$field] ?? null;
+            if (null === $value) {
+                continue;
+            }
+            $date = $this->parseLineDate($value);
+            if (!$date instanceof Carbon) {
+                InvalidArgument::fail($fieldPrefix . $field, sprintf('%s must be YYYY-MM-DD or ISO 8601.', $field), ['received' => $value]);
+            }
+            $line[$field] = $date;
+        }
+        foreach ([...self::OPTIONAL_STRING_FIELDS, 'foreign_currency_id'] as $field) {
+            $value = $input[$field] ?? null;
+            if (null === $value) {
+                continue;
+            }
+            if (!is_string($value) && !is_int($value) && !is_float($value)) {
+                InvalidArgument::fail($fieldPrefix . $field, sprintf('%s must be a string or number.', $field), ['received' => $value]);
+            }
+            $line[$field] = 'foreign_currency_id' === $field ? (int) $value : (string) $value;
+        }
+
+        return $line;
+    }
+
+    /**
+     * Schema entries for the optional passthrough fields.
+     *
+     * @return array<string, mixed>
+     */
+    protected function optionalLineSchema(JsonSchema $schema): array
+    {
+        $entries = [];
+        foreach (self::OPTIONAL_DATE_FIELDS as $field) {
+            $entries[$field] = $schema->string()->description('As date.');
+        }
+
+        return [
+            ...$entries,
+            'external_id'           => $schema->string(),
+            'internal_reference'    => $schema->string(),
+            'currency_code'         => $schema->string()->description('Default: account currency.'),
+            'foreign_amount'        => $schema->string()->description('Needs foreign_currency_code or _id.'),
+            'foreign_currency_code' => $schema->string(),
+            'foreign_currency_id'   => $schema->integer()
+        ];
     }
 
     /**
