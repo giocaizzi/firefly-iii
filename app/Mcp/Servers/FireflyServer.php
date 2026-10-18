@@ -34,11 +34,15 @@ use FireflyIII\Mcp\Resources\UserAccountsResource;
 use FireflyIII\Mcp\Resources\UserBudgetsResource;
 use FireflyIII\Mcp\Resources\UserCategoriesResource;
 use FireflyIII\Mcp\Resources\UserTagsResource;
+use FireflyIII\Mcp\Tools\AccountBalanceTool;
+use FireflyIII\Mcp\Tools\ApplyRuleTool;
 use FireflyIII\Mcp\Tools\BulkCreateTransactionsTool;
 use FireflyIII\Mcp\Tools\ChartDataTool;
 use FireflyIII\Mcp\Tools\ClassifyTransactionsTool;
 use FireflyIII\Mcp\Tools\ConvertTransactionTool;
 use FireflyIII\Mcp\Tools\CreateDepositTool;
+use FireflyIII\Mcp\Tools\CreateRuleGroupTool;
+use FireflyIII\Mcp\Tools\CreateRuleTool;
 use FireflyIII\Mcp\Tools\CreateTransferTool;
 use FireflyIII\Mcp\Tools\CreateWithdrawalTool;
 use FireflyIII\Mcp\Tools\DeleteAccountTool;
@@ -67,6 +71,8 @@ use FireflyIII\Mcp\Tools\ListTransactionsTool;
 use FireflyIII\Mcp\Tools\ListWebhooksTool;
 use FireflyIII\Mcp\Tools\SearchTransactionsTool;
 use FireflyIII\Mcp\Tools\SummaryBasicTool;
+use FireflyIII\Mcp\Tools\TestRuleTool;
+use FireflyIII\Mcp\Tools\UpdateRuleGroupTool;
 use FireflyIII\Mcp\Tools\UpdateRuleTool;
 use FireflyIII\Mcp\Tools\UpdateTransactionTool;
 use Laravel\Mcp\Server;
@@ -122,6 +128,7 @@ final class FireflyServer extends Server
         InsightExpenseTool::class,
         InsightIncomeTool::class,
         ChartDataTool::class,
+        AccountBalanceTool::class,
         // writes
         CreateWithdrawalTool::class,
         CreateDepositTool::class,
@@ -134,6 +141,11 @@ final class FireflyServer extends Server
         // rule management
         UpdateRuleTool::class,
         DeleteRuleTool::class,
+        CreateRuleTool::class,
+        CreateRuleGroupTool::class,
+        UpdateRuleGroupTool::class,
+        TestRuleTool::class,
+        ApplyRuleTool::class,
         // destructive entity management
         DeleteAccountTool::class,
         DeleteCategoryTool::class
