@@ -51,8 +51,16 @@ final class ServerManifestTest extends TestCase
      */
     private const array EXPECTED_TOOLS = [
         'account-balance-tool',
+        'accounts-write-tool',
         'apply-rule-tool',
+        'attachments-read-tool',
+        'attachments-write-tool',
+        'bills-read-tool',
+        'bills-write-tool',
+        'budgets-read-tool',
+        'budgets-write-tool',
         'bulk-create-transactions-tool',
+        'categories-write-tool',
         'chart-data-tool',
         'classify-transactions-tool',
         'convert-transaction-tool',
@@ -61,10 +69,13 @@ final class ServerManifestTest extends TestCase
         'create-rule-tool',
         'create-transfer-tool',
         'create-withdrawal-tool',
+        'currencies-read-tool',
+        'currencies-write-tool',
         'delete-account-tool',
         'delete-category-tool',
         'delete-rule-tool',
         'delete-transaction-tool',
+        'export-transactions-tool',
         'get-account-tool',
         'get-audit-log-tool',
         'get-budget-tool',
@@ -75,6 +86,8 @@ final class ServerManifestTest extends TestCase
         'health-tool',
         'insight-expense-tool',
         'insight-income-tool',
+        'links-read-tool',
+        'links-write-tool',
         'list-accounts-tool',
         'list-bills-tool',
         'list-budgets-tool',
@@ -85,12 +98,20 @@ final class ServerManifestTest extends TestCase
         'list-tags-tool',
         'list-transactions-tool',
         'list-webhooks-tool',
+        'object-groups-read-tool',
+        'object-groups-write-tool',
+        'piggy-banks-read-tool',
+        'piggy-banks-write-tool',
+        'recurrences-read-tool',
+        'recurrences-write-tool',
         'search-transactions-tool',
         'summary-basic-tool',
+        'tags-write-tool',
         'test-rule-tool',
         'update-rule-group-tool',
         'update-rule-tool',
-        'update-transaction-tool'
+        'update-transaction-tool',
+        'webhooks-write-tool'
     ];
 
     private const array EXPECTED_RESOURCES = [
@@ -129,6 +150,13 @@ final class ServerManifestTest extends TestCase
             }
             if (false === $annotations['readOnlyHint']) {
                 self::assertIsBool($annotations['destructiveHint'] ?? null, sprintf('Write tool %s has no destructiveHint.', $name));
+            }
+            if (str_ends_with($name, '-read-tool') || str_starts_with($name, 'export-')) {
+                self::assertTrue($annotations['readOnlyHint'], sprintf('Tool %s should be read-only.', $name));
+            }
+            if (str_ends_with($name, '-write-tool')) {
+                self::assertFalse($annotations['readOnlyHint'], sprintf('Tool %s cannot be read-only.', $name));
+                self::assertTrue($annotations['destructiveHint'], sprintf('Tool %s must be destructive.', $name));
             }
             if (str_starts_with($name, 'delete-')) {
                 self::assertFalse($annotations['readOnlyHint'], sprintf('Tool %s cannot be read-only.', $name));

@@ -35,8 +35,16 @@ use FireflyIII\Mcp\Resources\UserBudgetsResource;
 use FireflyIII\Mcp\Resources\UserCategoriesResource;
 use FireflyIII\Mcp\Resources\UserTagsResource;
 use FireflyIII\Mcp\Tools\AccountBalanceTool;
+use FireflyIII\Mcp\Tools\AccountsWriteTool;
 use FireflyIII\Mcp\Tools\ApplyRuleTool;
+use FireflyIII\Mcp\Tools\AttachmentsReadTool;
+use FireflyIII\Mcp\Tools\AttachmentsWriteTool;
+use FireflyIII\Mcp\Tools\BillsReadTool;
+use FireflyIII\Mcp\Tools\BillsWriteTool;
+use FireflyIII\Mcp\Tools\BudgetsReadTool;
+use FireflyIII\Mcp\Tools\BudgetsWriteTool;
 use FireflyIII\Mcp\Tools\BulkCreateTransactionsTool;
+use FireflyIII\Mcp\Tools\CategoriesWriteTool;
 use FireflyIII\Mcp\Tools\ChartDataTool;
 use FireflyIII\Mcp\Tools\ClassifyTransactionsTool;
 use FireflyIII\Mcp\Tools\ConvertTransactionTool;
@@ -45,10 +53,13 @@ use FireflyIII\Mcp\Tools\CreateRuleGroupTool;
 use FireflyIII\Mcp\Tools\CreateRuleTool;
 use FireflyIII\Mcp\Tools\CreateTransferTool;
 use FireflyIII\Mcp\Tools\CreateWithdrawalTool;
+use FireflyIII\Mcp\Tools\CurrenciesReadTool;
+use FireflyIII\Mcp\Tools\CurrenciesWriteTool;
 use FireflyIII\Mcp\Tools\DeleteAccountTool;
 use FireflyIII\Mcp\Tools\DeleteCategoryTool;
 use FireflyIII\Mcp\Tools\DeleteRuleTool;
 use FireflyIII\Mcp\Tools\DeleteTransactionTool;
+use FireflyIII\Mcp\Tools\ExportTransactionsTool;
 use FireflyIII\Mcp\Tools\GetAccountTool;
 use FireflyIII\Mcp\Tools\GetAuditLogTool;
 use FireflyIII\Mcp\Tools\GetBudgetTool;
@@ -59,6 +70,8 @@ use FireflyIII\Mcp\Tools\GetTransactionTool;
 use FireflyIII\Mcp\Tools\HealthTool;
 use FireflyIII\Mcp\Tools\InsightExpenseTool;
 use FireflyIII\Mcp\Tools\InsightIncomeTool;
+use FireflyIII\Mcp\Tools\LinksReadTool;
+use FireflyIII\Mcp\Tools\LinksWriteTool;
 use FireflyIII\Mcp\Tools\ListAccountsTool;
 use FireflyIII\Mcp\Tools\ListBillsTool;
 use FireflyIII\Mcp\Tools\ListBudgetsTool;
@@ -69,12 +82,20 @@ use FireflyIII\Mcp\Tools\ListRulesTool;
 use FireflyIII\Mcp\Tools\ListTagsTool;
 use FireflyIII\Mcp\Tools\ListTransactionsTool;
 use FireflyIII\Mcp\Tools\ListWebhooksTool;
+use FireflyIII\Mcp\Tools\ObjectGroupsReadTool;
+use FireflyIII\Mcp\Tools\ObjectGroupsWriteTool;
+use FireflyIII\Mcp\Tools\PiggyBanksReadTool;
+use FireflyIII\Mcp\Tools\PiggyBanksWriteTool;
+use FireflyIII\Mcp\Tools\RecurrencesReadTool;
+use FireflyIII\Mcp\Tools\RecurrencesWriteTool;
 use FireflyIII\Mcp\Tools\SearchTransactionsTool;
 use FireflyIII\Mcp\Tools\SummaryBasicTool;
+use FireflyIII\Mcp\Tools\TagsWriteTool;
 use FireflyIII\Mcp\Tools\TestRuleTool;
 use FireflyIII\Mcp\Tools\UpdateRuleGroupTool;
 use FireflyIII\Mcp\Tools\UpdateRuleTool;
 use FireflyIII\Mcp\Tools\UpdateTransactionTool;
+use FireflyIII\Mcp\Tools\WebhooksWriteTool;
 use Laravel\Mcp\Server;
 
 /**
@@ -92,13 +113,16 @@ final class FireflyServer extends Server
     protected string $version;
 
     /**
-     * Override laravel/mcp's default page size (15) so all 41 MCP tools land in a single
+     * Override laravel/mcp's default page size (15) so all MCP tools land in a single
      * tools/list response. Many MCP clients — Claude Code's SDK among them — do NOT
      * automatically follow nextCursor, which silently hides the trailing tools (aggregates
      * + writes) from the agent. Keeping the entire surface visible after one round-trip
-     * costs ~4kB of additional response payload, well within the framework's 50-item max.
+     * costs a few kB of additional response payload. maxPaginationLength (laravel/mcp default 50)
+     * is raised with it, or the surface past 50 tools would page again.
      */
-    public int $defaultPaginationLength = 50;
+    public int $defaultPaginationLength = 100;
+
+    public int $maxPaginationLength = 100;
 
     protected array $tools = [
         // core entity list/get
@@ -148,7 +172,29 @@ final class FireflyServer extends Server
         ApplyRuleTool::class,
         // destructive entity management
         DeleteAccountTool::class,
-        DeleteCategoryTool::class
+        DeleteCategoryTool::class,
+        // full coverage: one read and one write tool per area, on the REST API
+        BudgetsReadTool::class,
+        BudgetsWriteTool::class,
+        BillsReadTool::class,
+        BillsWriteTool::class,
+        PiggyBanksReadTool::class,
+        PiggyBanksWriteTool::class,
+        RecurrencesReadTool::class,
+        RecurrencesWriteTool::class,
+        CurrenciesReadTool::class,
+        CurrenciesWriteTool::class,
+        AttachmentsReadTool::class,
+        AttachmentsWriteTool::class,
+        LinksReadTool::class,
+        LinksWriteTool::class,
+        ObjectGroupsReadTool::class,
+        ObjectGroupsWriteTool::class,
+        TagsWriteTool::class,
+        CategoriesWriteTool::class,
+        AccountsWriteTool::class,
+        WebhooksWriteTool::class,
+        ExportTransactionsTool::class
     ];
 
     protected array $resources = [
