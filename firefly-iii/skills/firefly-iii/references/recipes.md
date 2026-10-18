@@ -90,8 +90,10 @@ User pasted a CSV or pointed at a file. Parse it (Read tool on the file, NOT thi
    - For any unresolved name, decide: auto-create (expense/revenue allow it) or ask user
 2. Build the array; cap at 100 items per call; chunk if needed
 3. Generate a deterministic idempotency_key per item: hash(source + date + amount + description)
-4. bulk-create-transactions
-5. On all-or-nothing failure, surface the error.errors[] indexed list and let the user fix the offending rows
+4. match-transactions on the rows to find the ones already in Firefly
+5. bulk-create-transactions dry_run=true skip_duplicates=true (pass external_id per item when the source has one)
+6. Show the plan, confirm, then repeat without dry_run and read back
+7. On all-or-nothing failure, surface the error.errors[] indexed list and let the user fix the offending rows
 ```
 
 ## Recipe: dry-run before a destructive change

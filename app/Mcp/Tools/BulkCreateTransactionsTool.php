@@ -26,6 +26,7 @@ namespace FireflyIII\Mcp\Tools;
 
 use FireflyIII\Api\V1\Requests\Models\Transaction\StoreRequest;
 use FireflyIII\Mcp\Support\CreatedEntities;
+use FireflyIII\Mcp\Tools\Concerns\MatchesTransactions;
 use FireflyIII\Mcp\Tools\Concerns\ProjectsTransactions;
 use FireflyIII\Mcp\Tools\Concerns\WritesTransactions;
 use FireflyIII\Repositories\TransactionGroup\TransactionGroupRepositoryInterface;
@@ -53,13 +54,17 @@ use function Safe\json_encode;
  *
  * Audit log: one `info` line per successful or replayed item plus one summary line
  * at the end with totals. Failures are logged at `error` with the offending index.
+ *
+ * Import support (all off by default, so a plain call behaves as before): `dry_run` returns the
+ * plan (create / replay / skip with reasons) without writing; `skip_duplicates` leaves out items
+ * that already exist, by `external_id` or, with `duplicate_check=amount_date_account`, by signed
+ * amount on the item's asset account within `date_window_days`.
  */
-#[Description(
-    'Create up to 100 withdrawals/deposits/transfers atomically. After a timeout, resend with the same idempotency_keys: committed items replay, none duplicate.'
-)]
+#[Description('Create up to 100 withdrawals/deposits/transfers atomically. dry_run previews; skip_duplicates skips existing; resent idempotency_keys replay, none duplicate.')]
 #[IsDestructive(false)]
 final class BulkCreateTransactionsTool extends AbstractMcpTool
 {
+    use MatchesTransactions;
     use ProjectsTransactions;
     use WritesTransactions;
 
@@ -75,6 +80,11 @@ final class BulkCreateTransactionsTool extends AbstractMcpTool
         if (count($items) > self::MAX_ITEMS) {
             return Response::error(sprintf('Maximum %d items per call.', self::MAX_ITEMS));
         }
+
+        $dryRun         = (bool) $request->get('dry_run', false);
+        $skipDuplicates = (bool) $request->get('skip_duplicates', false);
+        $duplicateCheck = $this->enumArg($request, 'duplicate_check', ['external_id', 'amount_date_account'], 'external_id');
+        $windowDays     = $this->dateWindowArg($request);
 
         /** @var User $user */
         $user          = auth()->user();
@@ -112,7 +122,10 @@ final class BulkCreateTransactionsTool extends AbstractMcpTool
                 continue;
             }
 
-            $line    = $this->buildTransactionLine($type, $item);
+            $line = $this->buildTransactionLine($type, $item);
+            if (null !== ($item['external_id'] ?? null)) {
+                $line['external_id'] = (string) $item['external_id'];
+            }
             $payload = ['transactions' => [$line]];
             $errors  = $this->collectValidationErrors($payload, $storeRules);
             if ([] !== $errors) {
@@ -127,13 +140,30 @@ final class BulkCreateTransactionsTool extends AbstractMcpTool
                 continue;
             }
 
-            $preparedItems[$index] = ['payload' => $payload, 'idempotency_key' => $idempotencyKey];
+            $preparedItems[$index] = ['payload' => $payload, 'idempotency_key' => $idempotencyKey, 'item' => $item];
         }
 
         if ([] !== $itemErrors) {
             $this->auditWriteFailure('validation', sprintf('%d items rejected pre-flight.', count($itemErrors)));
 
             return Response::error((string) json_encode(['errors' => $itemErrors]));
+        }
+
+        $plan = [];
+        if ($dryRun || $skipDuplicates) {
+            $duplicates = $this->findDuplicates(
+                array_map(static fn(array $prepared): array => $prepared['item'], $preparedItems),
+                $duplicateCheck,
+                $windowDays
+            );
+            $plan = $this->planItems($preparedItems, $duplicates, $skipDuplicates);
+        }
+        if ($dryRun) {
+            return Response::json($this->dryRunResult($plan));
+        }
+        $skipped = array_values(array_filter($plan, static fn(array $entry): bool => 'skip' === $entry['action']));
+        foreach ($skipped as $entry) {
+            unset($preparedItems[$entry['index']]);
         }
 
         // All items passed pre-flight; open the DB transaction. Any failure inside the
@@ -195,18 +225,23 @@ final class BulkCreateTransactionsTool extends AbstractMcpTool
             'user_id'  => auth()->id(),
             'count'    => count($preparedItems),
             'created'  => $created,
-            'replayed' => $replayed
+            'replayed' => $replayed,
+            ...($skipDuplicates ? ['skipped' => count($skipped)] : [])
         ]);
 
         $result = [
             'data' => [
                 'created'      => $created,
                 'replayed'     => $replayed,
-                'total'        => count($preparedItems),
+                'total'        => count($preparedItems) + count($skipped),
                 'transactions' => $documents
             ]
         ];
         $createdMeta = $this->createdMeta($newNames);
+        if ($skipDuplicates) {
+            $result['data']['skipped']       = count($skipped);
+            $result['data']['skipped_items'] = array_map(static fn(array $entry): array => array_diff_key($entry, ['action' => true]), $skipped);
+        }
         if (!(bool) $request->get('verbose', false)) {
             $meta  = [];
             $items = [];
@@ -247,14 +282,12 @@ final class BulkCreateTransactionsTool extends AbstractMcpTool
             'budget_name'      => $schema->string()->description('Budget name.'),
             'tags'             => $schema->array()->items($schema->string())->description('Tag ids or names.'),
             'notes'            => $schema->string()->description('Notes.'),
-            'idempotency_key'  => $schema
-                ->string()
-                ->max(self::MAX_IDEMPOTENCY_KEY_LENGTH)
-                ->description('Retry dedup key (printable ASCII, max 128); a replay returns the original.')
+            'idempotency_key'  => $schema->string()->max(self::MAX_IDEMPOTENCY_KEY_LENGTH)->description('Retry dedup key (printable ASCII, max 128); a replay returns the original.'),
+            'external_id'      => $schema->string()->description('External id.')
         ]);
 
         return [
-            'transactions' => $schema
+            'transactions'     => $schema
                 ->array()
                 ->items($item)
                 ->min(1)
@@ -262,6 +295,10 @@ final class BulkCreateTransactionsTool extends AbstractMcpTool
                 ->required()
                 ->description(sprintf('1-%d items; any failure rolls back the batch.', self::MAX_ITEMS)),
             ...$this->createMissingSchema($schema),
+            'dry_run'          => $schema->boolean()->description('Plan only, no writes.'),
+            'skip_duplicates'  => $schema->boolean()->description('Skip existing items.'),
+            'duplicate_check'  => $schema->string()->enum(['external_id', 'amount_date_account'])->description('Default external_id.'),
+            'date_window_days' => $schema->integer()->description(sprintf('Default 0, max %d.', self::MAX_DATE_WINDOW_DAYS)),
             ...$this->writeOutputSchema($schema)
         ];
     }
@@ -282,5 +319,71 @@ final class BulkCreateTransactionsTool extends AbstractMcpTool
         }
 
         return $validator->errors()->toArray();
+    }
+
+    /**
+     * Dry-run response: counts plus the per-item plan.
+     *
+     * @param list<array<string, mixed>> $plan
+     *
+     * @return array<string, mixed>
+     */
+    private function dryRunResult(array $plan): array
+    {
+        $counts = array_count_values(array_map(static fn(array $entry): string => $entry['action'], $plan));
+        Log::channel('audit')->info('MCP bulk dry run', [
+            'user_id' => auth()->id(),
+            'count'   => count($plan),
+            'create'  => $counts['create'] ?? 0,
+            'replay'  => $counts['replay'] ?? 0,
+            'skip'    => $counts['skip'] ?? 0
+        ]);
+
+        return [
+            'data' => [
+                'dry_run'      => true,
+                'would_create' => $counts['create'] ?? 0,
+                'would_replay' => $counts['replay'] ?? 0,
+                'would_skip'   => $counts['skip'] ?? 0,
+                'total'        => count($plan),
+                'items'        => $plan
+            ]
+        ];
+    }
+
+    /**
+     * Per-item action: `replay` (idempotency key already stored), `skip` (duplicate, with skip_duplicates)
+     * or `create`. Duplicates found without skip_duplicates are reported on the `create` entry.
+     *
+     * @param array<int, array<string, mixed>>                                 $preparedItems
+     * @param array<int, array{reason: string, transaction_ids: list<int>}> $duplicates
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function planItems(array $preparedItems, array $duplicates, bool $skipDuplicates): array
+    {
+        $plan = [];
+        foreach ($preparedItems as $index => $prepared) {
+            $key      = (string) $prepared['idempotency_key'];
+            $existing = '' === $key ? null : $this->findIdempotentJournal($key);
+            if (null !== $existing && null !== $existing->transactionGroup) {
+                $plan[] = ['index' => $index, 'action' => 'replay', 'transaction_id' => (int) $existing->transaction_group_id];
+
+                continue;
+            }
+            $duplicate = $duplicates[$index] ?? null;
+            if (null !== $duplicate && $skipDuplicates) {
+                $plan[] = ['index' => $index, 'action' => 'skip', ...$duplicate];
+
+                continue;
+            }
+            $entry = ['index' => $index, 'action' => 'create'];
+            if (null !== $duplicate) {
+                $entry['duplicate'] = $duplicate;
+            }
+            $plan[] = $entry;
+        }
+
+        return $plan;
     }
 }

@@ -98,6 +98,7 @@ final class ServerManifestTest extends TestCase
         'list-tags-tool',
         'list-transactions-tool',
         'list-webhooks-tool',
+        'match-transactions-tool',
         'object-groups-read-tool',
         'object-groups-write-tool',
         'piggy-banks-read-tool',

@@ -82,6 +82,7 @@ use FireflyIII\Mcp\Tools\ListRulesTool;
 use FireflyIII\Mcp\Tools\ListTagsTool;
 use FireflyIII\Mcp\Tools\ListTransactionsTool;
 use FireflyIII\Mcp\Tools\ListWebhooksTool;
+use FireflyIII\Mcp\Tools\MatchTransactionsTool;
 use FireflyIII\Mcp\Tools\ObjectGroupsReadTool;
 use FireflyIII\Mcp\Tools\ObjectGroupsWriteTool;
 use FireflyIII\Mcp\Tools\PiggyBanksReadTool;
@@ -138,6 +139,7 @@ final class FireflyServer extends Server
         GetTagTool::class,
         // search
         SearchTransactionsTool::class,
+        MatchTransactionsTool::class,
         // power-user
         ListBillsTool::class,
         ListRulesTool::class,
