@@ -90,6 +90,7 @@ final class BulkCreateTransactionsTool extends AbstractMcpTool
         $user          = auth()->user();
         $storeRules    = new StoreRequest()->rules();
         $itemErrors    = [];
+        $missingItems  = [];
         $createMissing = $this->createMissingArg($request);
 
         // Pre-validate every item up front so we don't open a DB transaction unless every
@@ -132,7 +133,7 @@ final class BulkCreateTransactionsTool extends AbstractMcpTool
             }
 
             if (!$createMissing && [] !== ($missing = $this->missingNames($user, ucfirst($type), $line))) {
-                $itemErrors[] = ['index' => $index, 'errors' => ['missing_names' => $missing]];
+                $missingItems[$index] = $missing;
 
                 continue;
             }
@@ -141,9 +142,19 @@ final class BulkCreateTransactionsTool extends AbstractMcpTool
         }
 
         if ([] !== $itemErrors) {
+            foreach ($missingItems as $index => $missing) {
+                $itemErrors[] = ['index' => $index, 'errors' => ['missing_names' => $missing]];
+            }
+            usort($itemErrors, static fn(array $a, array $b): int => $a['index'] <=> $b['index']);
             $this->auditWriteFailure('validation', sprintf('%d items rejected pre-flight.', count($itemErrors)));
 
             return Response::error((string) json_encode(['errors' => $itemErrors]));
+        }
+        // only unknown names: the same top-level error as the single create tools
+        if ([] !== $missingItems) {
+            $this->auditWriteFailure('validation', 'Unknown names with create_missing=false');
+
+            return $this->missingNamesError($this->mergeMissingNames(array_values($missingItems)), array_keys($missingItems));
         }
 
         $plan = [];
@@ -156,7 +167,19 @@ final class BulkCreateTransactionsTool extends AbstractMcpTool
             $plan = $this->planItems($preparedItems, $duplicates, $skipDuplicates);
         }
         if ($dryRun) {
-            return Response::json($this->dryRunResult($plan));
+            $result  = $this->dryRunResult($plan);
+            $missing = [];
+            foreach ($plan as $entry) {
+                if ('create' === $entry['action']) {
+                    $prepared  = $preparedItems[$entry['index']];
+                    $missing[] = $this->missingNames($user, ucfirst((string) $prepared['item']['type']), $prepared['payload']['transactions'][0]);
+                }
+            }
+            if ([] !== ($wouldCreate = $this->mergeMissingNames($missing))) {
+                $result['meta'] = ['would_create' => $wouldCreate];
+            }
+
+            return Response::json($result);
         }
         $skipped = array_values(array_filter($plan, static fn(array $entry): bool => 'skip' === $entry['action']));
         foreach ($skipped as $entry) {

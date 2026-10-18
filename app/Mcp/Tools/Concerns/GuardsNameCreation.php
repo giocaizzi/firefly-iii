@@ -125,14 +125,37 @@ trait GuardsNameCreation
     }
 
     /**
+     * `$items` (bulk create) lists the indexes of the items that use the missing names.
+     *
      * @param array<string, list<string>> $missing
+     * @param null|list<int>              $items
      */
-    protected function missingNamesError(array $missing): Response
+    protected function missingNamesError(array $missing, null|array $items = null): Response
     {
         return Response::error(json_encode([
             'error'   => 'missing_names',
             'message' => 'These names do not exist and create_missing=false; create them first or pass ids.',
-            'missing' => $missing
+            'missing' => $missing,
+            ...(null === $items ? [] : ['items' => $items])
         ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+    }
+
+    /**
+     * Union of several missingNames() results.
+     *
+     * @param list<array<string, list<string>>> $sets
+     *
+     * @return array<string, list<string>>
+     */
+    protected function mergeMissingNames(array $sets): array
+    {
+        $merged = [];
+        foreach ($sets as $set) {
+            foreach ($set as $kind => $names) {
+                $merged[$kind] = array_values(array_unique([...$merged[$kind] ?? [], ...$names]));
+            }
+        }
+
+        return $merged;
     }
 }

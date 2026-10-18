@@ -92,11 +92,17 @@ final class MergeWriteToolsTest extends TestCase
         $group = $this->createWithdrawal($user, $asset, $old, '5', 'Snack');
 
         $this->invalidArgument($user, AccountsWriteTool::class, ['action' => 'merge', 'id' => $old->id, 'into' => $asset->id], 'into');
-        $this->invokeTool($user, AccountsWriteTool::class, [
-            'action' => 'merge',
-            'id'     => $old->id,
-            'into'   => $new->id
-        ])->assertHasNoErrors()->assertSee('1 transactions moved');
+        $merge   = ['action' => 'merge', 'id' => $old->id, 'into' => $new->id];
+        $preview = $this->okJson($user, AccountsWriteTool::class, $merge);
+        self::assertSame(
+            ['preview' => true, 'would_move' => 1, 'source' => ['id' => $old->id, 'name' => 'Shop (old)'], 'into' => ['id' => $new->id, 'name' => 'Shop']],
+            array_diff_key($preview, ['message' => true])
+        );
+        self::assertTrue(Account::whereKey($old->id)->whereNull('deleted_at')->exists(), 'The merge preview wrote.');
+        self::assertSame(
+            ['merged' => 'account', 'id' => $old->id, 'into' => $new->id, 'moved' => 1],
+            $this->okJson($user, AccountsWriteTool::class, [...$merge, 'confirm' => true])
+        );
         self::assertFalse(Account::whereKey($old->id)->whereNull('deleted_at')->exists());
         self::assertTrue(DB::table('transactions')->where('transaction_journal_id', $this->journalId($group))->where('account_id', $new->id)->exists());
     }
@@ -117,11 +123,15 @@ final class MergeWriteToolsTest extends TestCase
         $group  = $this->journalWith($user, ['category_name' => 'Supermarket']);
         $source = Category::where('name', 'Supermarket')->firstOrFail();
 
-        $this->invokeTool($user, CategoriesWriteTool::class, [
-            'action' => 'merge',
-            'id'     => $source->id,
-            'into'   => $id
-        ])->assertHasNoErrors()->assertSee('1 transactions moved');
+        $merge   = ['action' => 'merge', 'id' => $source->id, 'into' => $id];
+        $preview = $this->okJson($user, CategoriesWriteTool::class, $merge);
+        self::assertTrue($preview['preview']);
+        self::assertSame(1, $preview['would_move']);
+        self::assertTrue(Category::whereKey($source->id)->exists(), 'The merge preview wrote.');
+        self::assertSame(
+            ['merged' => 'category', 'id' => $source->id, 'into' => $id, 'moved' => 1],
+            $this->okJson($user, CategoriesWriteTool::class, [...$merge, 'confirm' => true])
+        );
         self::assertFalse(Category::whereKey($source->id)->exists());
         self::assertSame($id, (int) DB::table('category_transaction_journal')->where('transaction_journal_id', $this->journalId($group))->value('category_id'));
         $this->invokeTool($user, CategoriesWriteTool::class, ['action' => 'merge', 'id' => 999_999, 'into' => $id])->assertHasErrors(['not found']);
@@ -147,8 +157,15 @@ final class MergeWriteToolsTest extends TestCase
         $trip   = Tag::where('tag', 'trip')->firstOrFail();
 
         $this->invalidArgument($user, TagsWriteTool::class, ['action' => 'merge', 'id' => 'trip', 'into' => 'trip'], 'into');
-        $merged = $this->invokeTool($user, TagsWriteTool::class, ['action' => 'merge', 'id' => 'trip', 'into' => (string) $id]);
-        $merged->assertHasNoErrors()->assertSee('2 transactions moved');
+        $merge   = ['action' => 'merge', 'id' => 'trip', 'into' => (string) $id];
+        $preview = $this->okJson($user, TagsWriteTool::class, $merge);
+        self::assertSame(['id' => $trip->id, 'name' => 'trip'], $preview['source']);
+        self::assertSame(2, $preview['would_move']);
+        self::assertTrue(Tag::whereKey($trip->id)->exists(), 'The merge preview wrote.');
+        self::assertSame(
+            ['merged' => 'tag', 'id' => $trip->id, 'into' => $id, 'moved' => 2],
+            $this->okJson($user, TagsWriteTool::class, [...$merge, 'confirm' => true])
+        );
         self::assertFalse(Tag::whereKey($trip->id)->exists());
         self::assertEqualsCanonicalizing(
             [$this->journalId($first), $this->journalId($second)],
@@ -161,7 +178,7 @@ final class MergeWriteToolsTest extends TestCase
 
         $error = $this->invalidArgument($user, TagsWriteTool::class, ['action' => 'delete', 'id' => 'travel'], 'confirm');
         self::assertSame(['transactions' => 2], $error['dependants']);
-        $this->invokeTool($user, TagsWriteTool::class, ['action' => 'delete', 'id' => 'travel', 'confirm' => true])->assertHasNoErrors();
+        self::assertSame(['deleted' => 'tag', 'id' => 'travel'], $this->okJson($user, TagsWriteTool::class, ['action' => 'delete', 'id' => 'travel', 'confirm' => true]));
         self::assertFalse(Tag::whereKey($id)->exists());
     }
 

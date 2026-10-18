@@ -39,11 +39,11 @@ use Laravel\Mcp\Server\Tools\Annotations\IsReadOnly;
 /**
  * Read the audit-log history (before/after change records) for a transaction.
  *
- * Firefly III records structured audit entries when rules or conversions mutate a
- * transaction. This returns both the group-level entries and the entries on the
+ * Firefly III records structured audit entries when rule actions mutate a transaction
+ * (edits through the MCP tools, conversions included, write none). This returns both the group-level entries and the entries on the
  * transaction's underlying journal(s), ordered oldest-first.
  */
-#[Description('Change history of a transaction (rule and conversion changes, before/after values).')]
+#[Description('Change history of a transaction made by rules (before/after values).')]
 #[IsReadOnly]
 #[IsIdempotent]
 final class GetAuditLogTool extends AbstractMcpTool

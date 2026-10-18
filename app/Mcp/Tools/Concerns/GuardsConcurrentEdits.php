@@ -26,13 +26,14 @@ namespace FireflyIII\Mcp\Tools\Concerns;
 
 use Carbon\Carbon;
 use FireflyIII\Mcp\Support\InvalidArgument;
+use FireflyIII\Mcp\Support\LastChanged;
 use FireflyIII\Models\TransactionGroup;
 use Throwable;
 
 /**
  * Optimistic concurrency for transaction writes: `if_unmodified_since` carries the `updated_at`
  * a client last read (list/search/get with fields=["updated_at"]). A transaction changed after
- * that moment is a conflict and is not written.
+ * that moment (LastChanged: rule edits included) is a conflict and is not written.
  */
 trait GuardsConcurrentEdits
 {
@@ -43,14 +44,15 @@ trait GuardsConcurrentEdits
      */
     protected function editConflict(TransactionGroup $group, Carbon $since): null|array
     {
-        if ($group->updated_at->getTimestamp() <= $since->getTimestamp()) {
+        $last = LastChanged::forGroups([(int) $group->id])[(int) $group->id] ?? $group->updated_at;
+        if ($last->getTimestamp() <= $since->getTimestamp()) {
             return null;
         }
 
         return [
             'error'               => 'conflict',
             'id'                  => $group->id,
-            'updated_at'          => $group->updated_at->toAtomString(),
+            'updated_at'          => $last->toAtomString(),
             'if_unmodified_since' => $since->toAtomString(),
             'message'             => 'The transaction changed after if_unmodified_since; re-read it and retry.'
         ];

@@ -52,7 +52,9 @@ final class BillsWriteTool extends AbstractApiTool
     protected function run(Request $request): Response
     {
         $action = $this->actionArg($request, ['create', 'update', 'delete']);
+        // the API stores a new subscription as inactive unless `active` is sent
+        $data   = 'create' === $action ? ['active' => true, ...$this->dataArg($request)] : null;
 
-        return $this->writeEntity($request, $action, 'bills', 'subscription', BillsReadTool::COMPACT, ['transactions' => 'transactions']);
+        return $this->writeEntity($request, $action, 'bills', 'subscription', BillsReadTool::COMPACT, ['transactions' => 'transactions'], false, $data);
     }
 }

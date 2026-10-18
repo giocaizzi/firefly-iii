@@ -259,6 +259,27 @@ abstract class AbstractMcpTool extends Tool
     }
 
     /**
+     * Transaction rows take `fields` only in compact mode; say so instead of dropping it silently.
+     *
+     * @param array<string, mixed> $result
+     *
+     * @return array<string, mixed>
+     */
+    protected static function fieldsIgnoredWarning(array $result, Request $request): array
+    {
+        if (null === $request->get('fields')) {
+            return $result;
+        }
+        $meta             = is_array($result['meta'] ?? null) ? $result['meta'] : [];
+        $warnings         = is_array($meta['warnings'] ?? null) ? $meta['warnings'] : [];
+        $warnings[]       = 'fields applies to compact rows only and was ignored with compact=false';
+        $meta['warnings'] = $warnings;
+        $result['meta']   = $meta;
+
+        return $result;
+    }
+
+    /**
      * Non-verbose output shape. Default: the generic reducer; tools with a compact projection override this.
      *
      * @param array<string, mixed> $jsonApiDocument

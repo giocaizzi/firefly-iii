@@ -269,7 +269,7 @@ trait WritesTransactions
                     'idempotent_replay' => true
                 ]);
 
-                return $this->respondJsonApi($this->buildGroupDocument($existingJournal->transactionGroup), $request);
+                return $this->respondJsonApi($this->buildGroupDocument($existingJournal->transactionGroup), $request, ['replayed' => true]);
             }
         }
 
@@ -304,7 +304,7 @@ trait WritesTransactions
             'idempotent_replay' => false
         ]);
 
-        return $this->respondJsonApi($this->buildGroupDocument($group), $request, $this->createdMeta($created));
+        return $this->respondJsonApi($this->buildGroupDocument($group), $request, [...$this->createdMeta($created), 'replayed' => false]);
     }
 
     /**

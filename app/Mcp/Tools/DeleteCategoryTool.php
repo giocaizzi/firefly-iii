@@ -81,7 +81,7 @@ final class DeleteCategoryTool extends AbstractMcpTool
             'category_id' => $categoryId
         ]);
 
-        return Response::text(sprintf('Deleted category #%d.', $categoryId));
+        return Response::json(['deleted' => 'category', 'id' => $categoryId]);
     }
 
     /**

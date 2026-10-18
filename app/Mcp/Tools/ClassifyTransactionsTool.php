@@ -68,7 +68,7 @@ use function Safe\json_encode;
     'Set category/budget/bill/tags/notes/expense-revenue account on up to 200 transactions (ids or query). dry_run (default true) previews before/after.'
 )]
 #[IsDestructive(false)]
-final class ClassifyTransactionsTool extends AbstractMcpTool
+final class ClassifyTransactionsTool extends AbstractMcpTool implements RejectsUnknownArguments
 {
     use EditsClassification;
     use GuardsConcurrentEdits;

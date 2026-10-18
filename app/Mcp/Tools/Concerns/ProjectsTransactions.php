@@ -25,6 +25,7 @@ declare(strict_types=1);
 namespace FireflyIII\Mcp\Tools\Concerns;
 
 use FireflyIII\Mcp\Support\InvalidArgument;
+use FireflyIII\Mcp\Support\LastChanged;
 use FireflyIII\Mcp\Support\TransactionProjector;
 use FireflyIII\Support\Facades\Amount;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
@@ -66,8 +67,9 @@ trait ProjectsTransactions
      */
     protected function shape(array $jsonApiDocument, Request $request): array
     {
+        $jsonApiDocument = LastChanged::apply($jsonApiDocument);
         if (!$this->wantsCompact($request)) {
-            return parent::shape($jsonApiDocument, $request);
+            return self::fieldsIgnoredWarning(parent::shape($jsonApiDocument, $request), $request);
         }
 
         return $this->projectTransactions($jsonApiDocument, $request);
