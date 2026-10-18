@@ -25,9 +25,13 @@ declare(strict_types=1);
 namespace FireflyIII\Mcp\Tools;
 
 use FireflyIII\Api\V1\Requests\Models\Transaction\UpdateRequest;
+use FireflyIII\Mcp\Support\CreatedEntities;
+use FireflyIII\Mcp\Tools\Concerns\EditsClassification;
+use FireflyIII\Mcp\Tools\Concerns\GuardsConcurrentEdits;
 use FireflyIII\Mcp\Tools\Concerns\ProjectsTransactions;
 use FireflyIII\Mcp\Tools\Concerns\WritesTransactions;
 use FireflyIII\Models\TransactionGroup;
+use FireflyIII\Models\TransactionJournal;
 use FireflyIII\Repositories\TransactionGroup\TransactionGroupRepositoryInterface;
 use FireflyIII\User;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
@@ -39,23 +43,31 @@ use Laravel\Mcp\Server\Tools\Annotations\IsDestructive;
 use Laravel\Mcp\Server\Tools\Annotations\IsIdempotent;
 use Throwable;
 
+use function Safe\json_encode;
+
 /**
  * Update a single-journal transaction by its group id.
  *
  * Only the fields provided in the request are updated; omitted fields remain
- * untouched. Annotated as `IsDestructive` and `IsIdempotent`.
+ * untouched. `tags` replaces the tag set, `add_tags` / `remove_tags` merge with it, and
+ * `clear_category` / `clear_budget` / `clear_bill` unlink a relation. `if_unmodified_since`
+ * refuses the write when the transaction changed after that moment. Annotated as
+ * `IsDestructive` and `IsIdempotent`.
  */
 #[Description('Update a transaction; only passed fields change.')]
 #[IsDestructive]
 #[IsIdempotent]
 final class UpdateTransactionTool extends AbstractMcpTool
 {
+    use EditsClassification;
+    use GuardsConcurrentEdits;
     use ProjectsTransactions;
     use WritesTransactions;
 
     public function handle(Request $request): Response
     {
         $this->validateShapeArgs($request);
+        $since         = $this->unmodifiedSince($request->get('if_unmodified_since'), 'if_unmodified_since');
         $input         = $request->toArray();
         $transactionId = array_key_exists('transaction_id', $input) ? (int) $input['transaction_id'] : 0;
         if ($transactionId <= 0) {
@@ -76,7 +88,11 @@ final class UpdateTransactionTool extends AbstractMcpTool
             return Response::error(sprintf('Transaction #%d has no journals.', $transactionId));
         }
 
-        $line          = $this->buildUpdateLine($input, (int) $journal->id);
+        if (null !== $since && null !== ($conflict = $this->editConflict($group, $since))) {
+            return Response::error(json_encode($conflict));
+        }
+
+        $line          = $this->buildUpdateLine($input, $journal);
         $payload       = ['transactions' => [$line]];
         $updateRequest = new UpdateRequest();
         if (null !== ($invalid = $this->validateAgainstRules($payload, $updateRequest->rules()))) {
@@ -84,6 +100,12 @@ final class UpdateTransactionTool extends AbstractMcpTool
 
             return $invalid;
         }
+        if (!$this->createMissingArg($request) && [] !== ($missing = $this->missingNames($user, $journal->transactionType->type, $line))) {
+            $this->auditWriteFailure('validation', 'Unknown names with create_missing=false');
+
+            return $this->missingNamesError($missing);
+        }
+        $created = CreatedEntities::mark($user);
 
         try {
             $group = app(TransactionGroupRepositoryInterface::class)->update($group, $payload);
@@ -100,7 +122,7 @@ final class UpdateTransactionTool extends AbstractMcpTool
             'idempotent_replay' => false
         ]);
 
-        return $this->respondJsonApi($this->buildGroupDocument($group), $request);
+        return $this->respondJsonApi($this->buildGroupDocument($group), $request, $this->createdMeta($created));
     }
 
     /**
@@ -123,6 +145,9 @@ final class UpdateTransactionTool extends AbstractMcpTool
             'budget_name'      => $schema->string()->description('Budget name.'),
             'tags'             => $schema->array()->items($schema->string())->description('Replaces all tags.'),
             'notes'            => $schema->string()->description('Replaces notes.'),
+            ...$this->classificationEditSchema($schema),
+            'if_unmodified_since' => $schema->string()->description('updated_at you last read; a newer change returns a conflict error, nothing is written.'),
+            ...$this->createMissingSchema($schema),
             ...$this->writeOutputSchema($schema)
         ];
     }
@@ -135,9 +160,9 @@ final class UpdateTransactionTool extends AbstractMcpTool
      *
      * @return array<string, mixed>
      */
-    private function buildUpdateLine(array $input, int $journalId): array
+    private function buildUpdateLine(array $input, TransactionJournal $journal): array
     {
-        $line = ['transaction_journal_id' => $journalId];
+        $line = ['transaction_journal_id' => (int) $journal->id];
         $map  = [
             'amount'           => 'string',
             'date'             => 'string',
@@ -164,7 +189,12 @@ final class UpdateTransactionTool extends AbstractMcpTool
                 $line['tags'] = $tags;
             }
         }
+        $add    = $this->normaliseTags($input['add_tags'] ?? null) ?? [];
+        $remove = $this->normaliseTags($input['remove_tags'] ?? null) ?? [];
+        if ([] !== $add || [] !== $remove) {
+            $line['tags'] = $this->mergeTags($line['tags'] ?? $this->journalTags($journal), $add, $remove);
+        }
 
-        return $line;
+        return [...$line, ...$this->clearedRelations($input)];
     }
 }
