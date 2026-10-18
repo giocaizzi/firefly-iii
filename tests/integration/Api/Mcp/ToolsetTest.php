@@ -32,8 +32,8 @@ use Tests\integration\Api\Mcp\Concerns\EnsuresPassportKeys;
 use Tests\integration\TestCase;
 
 /**
- * Pins the `?toolset=` split: `everyday` (the default) serves Toolset::EVERYDAY, `all` serves
- * every registered tool, and anything else is a 400.
+ * Pins the `?toolset=` split: `everyday` (the default) serves Toolset::EVERYDAY, `admin` serves
+ * every other registered tool, and anything else is a 400.
  *
  * @internal
  *
@@ -44,7 +44,8 @@ final class ToolsetTest extends TestCase
     use CallsMcpEndpoint;
     use EnsuresPassportKeys;
 
-    private const string ADMIN_TOOL = 'delete-rule-tool';
+    private const string ADMIN_TOOL    = 'delete-rule-tool';
+    private const string EVERYDAY_TOOL = 'health-tool';
 
     /**
      * @covers \FireflyIII\Mcp\Servers\FireflyServer
@@ -69,32 +70,40 @@ final class ToolsetTest extends TestCase
 
     /**
      * @covers \FireflyIII\Mcp\Servers\FireflyServer
+     * @covers \FireflyIII\Mcp\Servers\Toolset
      */
-    public function testAllToolsetListsEveryTool(): void
+    public function testAdminToolsetListsOnlyAdminTools(): void
     {
         $this->actingAsUser();
-        $body  = $this->mcpCall('tools/list', [], 'all')->assertOk()->json();
-        $names = array_column($body['result']['tools'] ?? [], 'name');
+        $sets     = $this->toolsByToolset();
+        $everyday = array_column($sets['everyday'], 'name');
+        $admin    = array_column($sets['admin'], 'name');
 
-        self::assertCount(63, $names);
-        self::assertContains(self::ADMIN_TOOL, $names);
-        self::assertArrayNotHasKey('nextCursor', $body['result'], 'tools/list paginated the full set.');
+        self::assertCount(25, $admin);
+        self::assertContains(self::ADMIN_TOOL, $admin);
+        self::assertSame([], array_intersect($everyday, $admin), 'The everyday and admin toolsets overlap.');
+        self::assertCount(63, array_unique([...$everyday, ...$admin]), 'The two toolsets do not cover every registered tool.');
     }
 
     /**
      * @covers \FireflyIII\Mcp\Servers\FireflyServer
      */
-    public function testAdminToolCallUnderEverydayIsRejected(): void
+    public function testToolCallOutsideTheToolsetNamesTheOtherOne(): void
     {
         $this->actingAsUser();
-        $params = ['name' => self::ADMIN_TOOL, 'arguments' => new \stdClass()];
+        $admin    = ['name' => self::ADMIN_TOOL, 'arguments' => new \stdClass()];
+        $everyday = ['name' => self::EVERYDAY_TOOL, 'arguments' => new \stdClass()];
 
-        $body   = $this->mcpCall('tools/call', $params)->assertOk()->json();
+        $body     = $this->mcpCall('tools/call', $admin)->assertOk()->json();
         self::assertSame(-32602, $body['error']['code'] ?? null);
-        self::assertStringContainsString('toolset=all', $body['error']['message'] ?? '');
+        self::assertStringContainsString('toolset=admin', $body['error']['message'] ?? '');
 
-        $body   = $this->mcpCall('tools/call', $params, 'all')->assertOk()->json();
-        self::assertArrayNotHasKey('error', $body, 'The admin tool is not dispatchable under toolset=all.');
+        $body     = $this->mcpCall('tools/call', $everyday, 'admin')->assertOk()->json();
+        self::assertSame(-32602, $body['error']['code'] ?? null);
+        self::assertStringContainsString('everyday toolset', $body['error']['message'] ?? '');
+
+        $body     = $this->mcpCall('tools/call', $admin, 'admin')->assertOk()->json();
+        self::assertArrayNotHasKey('error', $body, 'The admin tool is not dispatchable under toolset=admin.');
     }
 
     /**
@@ -104,9 +113,12 @@ final class ToolsetTest extends TestCase
     {
         $this->actingAsUser();
 
-        $response = $this->mcpCall('tools/list', [], 'admin');
-        $response->assertStatus(400);
-        self::assertStringContainsString('toolset=all', (string) $response->json('message'));
+        foreach (['all', 'nope'] as $toolset) {
+            $response = $this->mcpCall('tools/list', [], $toolset);
+            $response->assertStatus(400);
+            self::assertStringContainsString('toolset=everyday', (string) $response->json('message'));
+            self::assertStringContainsString('toolset=admin', (string) $response->json('message'));
+        }
     }
 
     /**
@@ -117,7 +129,7 @@ final class ToolsetTest extends TestCase
         $this->actingAsUser();
 
         self::assertSame(
-            $this->mcpCall('resources/list', [], 'all')->assertOk()->json('result'),
+            $this->mcpCall('resources/list', [], 'admin')->assertOk()->json('result'),
             $this->mcpCall('resources/list')->assertOk()->json('result')
         );
     }
@@ -130,12 +142,12 @@ final class ToolsetTest extends TestCase
      */
     public function testAuthWorksWithToolsetQuery(): void
     {
-        $response = $this->mcpCall('initialize', $this->initializeParams(), 'all');
+        $response = $this->mcpCall('initialize', $this->initializeParams(), 'admin');
         $response->assertStatus(401);
         self::assertStringContainsString('/.well-known/oauth-protected-resource/api/v1/mcp"', (string) $response->headers->get('WWW-Authenticate'));
 
         Passport::actingAs($this->createAuthenticatedUser(), ['mcp:use']);
-        $this->mcpCall('initialize', $this->initializeParams(), 'all')->assertOk();
+        $this->mcpCall('initialize', $this->initializeParams(), 'admin')->assertOk();
     }
 
     protected function setUp(): void

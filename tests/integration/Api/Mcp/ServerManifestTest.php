@@ -135,9 +135,7 @@ final class ServerManifestTest extends TestCase
      */
     public function testEveryToolIsAnnotated(): void
     {
-        $body = $this->mcpCall('tools/list', [], 'all')->assertOk()->json();
-
-        foreach ($body['result']['tools'] as $tool) {
+        foreach (array_merge(...array_values($this->toolsByToolset())) as $tool) {
             $name        = $tool['name'];
             $annotations = $tool['annotations'] ?? [];
 
@@ -187,20 +185,18 @@ final class ServerManifestTest extends TestCase
      */
     public function testToolsListExposesEntireSurfaceInOneResponse(): void
     {
-        $body = $this->mcpCall('tools/list', [], 'all')->assertOk()->json();
-
-        $names = array_column($body['result']['tools'] ?? [], 'name');
+        // Each toolset must arrive in a single page (toolsByToolset asserts it); this guards
+        // FireflyServer::$defaultPaginationLength against an upstream default reset.
+        $tools = array_merge(...array_values($this->toolsByToolset()));
+        $names = array_column($tools, 'name');
         sort($names);
+        // Duplicates would surface here too: the two toolsets are disjoint.
         $expected = self::EXPECTED_TOOLS;
         sort($expected);
 
         self::assertSame($expected, $names, 'Advertised tool surface drifted from the expected set.');
 
-        // The whole surface must arrive in a single page; many clients do not follow nextCursor.
-        // This guards FireflyServer::$defaultPaginationLength against an upstream default reset.
-        self::assertArrayNotHasKey('nextCursor', $body['result'], 'tools/list paginated; trailing tools would be invisible to clients.');
-
-        foreach ($body['result']['tools'] as $tool) {
+        foreach ($tools as $tool) {
             self::assertNotEmpty($tool['description'] ?? '', sprintf('Tool %s has no description.', $tool['name']));
             self::assertArrayHasKey('inputSchema', $tool, sprintf('Tool %s exposes no input schema.', $tool['name']));
         }

@@ -65,18 +65,19 @@ use FireflyIII\Mcp\Tools\UpdateTransactionTool;
 
 /**
  * The tool set one MCP connection sees, picked with the `toolset` query parameter on the
- * endpoint (`/api/v1/mcp?toolset=all`). Clients send every tool schema on every turn, so the
- * default `everyday` set keeps day-to-day bookkeeping lean; `all` adds the admin tools.
+ * endpoint (`/api/v1/mcp?toolset=admin`). Clients send every tool schema on every turn, so the
+ * default `everyday` set keeps day-to-day bookkeeping lean and `admin` serves only the rest.
+ * The two sets are disjoint: a client connected to both sees each tool once.
  */
 enum Toolset: string
 {
-    case All      = 'all';
+    case Admin    = 'admin';
     case Everyday = 'everyday';
 
     public const string QUERY_PARAMETER = 'toolset';
 
     /**
-     * The only membership list: every tool not named here is admin-only.
+     * The only membership list: every tool not named here is in the admin toolset.
      *
      * @var list<class-string>
      */
@@ -129,6 +130,6 @@ enum Toolset: string
 
     public function includes(string $toolClass): bool
     {
-        return self::All === $this || in_array($toolClass, self::EVERYDAY, true);
+        return (self::Everyday === $this) === in_array($toolClass, self::EVERYDAY, true);
     }
 }
