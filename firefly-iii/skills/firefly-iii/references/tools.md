@@ -187,6 +187,9 @@ Marked `IsDestructive` + `IsIdempotent`.
 
 Returns a plain-text confirmation. Marked `IsDestructive` (NOT idempotent — a second call returns "Transaction not found").
 
+### `convert-transaction`
+- `transaction_id: int` (required), `type: enum` ∈ `{withdrawal, deposit, transfer}` (required), plus `source_id?` / `source_name?` and `destination_id?` / `destination_name?` for the accounts the new type needs; single-split transactions only.
+
 ### `bulk-create-transactions`
 - `transactions: array<TransactionSpec>` (max 100 items, required)
   - Each item: `type: enum` ∈ `{withdrawal, deposit, transfer}` + the full create-* spec
@@ -210,6 +213,9 @@ Bulk classification edits; never touches amounts, dates, currencies, description
 - `account_id: int` (required)
 - `move_to_account_id?: int` — move its transactions there first (merge)
 - `delete_transactions?: bool` — required (`true`) to delete an account that still has transactions without a move target; otherwise the call errors with the transaction count
+
+### `delete-category`
+- `category_id: int` (required); its transactions keep existing, without a category.
 
 Every transaction write tool echoes the compact row (`compact: false` / `verbose: true` for the full shapes).
 
@@ -238,6 +244,45 @@ Trigger `type` is a search operator (see `firefly-iii://help/search`); prefix it
 - `rule_id?: int` or `rule_group_id?: int` — one required
 - Scope required: `start?`, `end?`, `transaction_ids?: int[]`, `account_ids?: int[]`
 - Returns `{ rule_ids, affected }` — `affected` = transactions changed. Group rules fire one by one; `stop_processing` does not stop the group (as in the REST API).
+
+## Area tools (`<area>-read` / `<area>-write`)
+
+One read and one write tool per remaining Firefly area. They run on Firefly's own REST API v1 (same validation, ownership checks and business rules), so the `data` object of a write takes the API's body fields.
+
+Shared arguments:
+- `action` (required): read `list` | `get` (plus the extra actions below); write `create` | `update` | `delete` (plus extras).
+- `id`: the object for `get` / `update` / `delete`.
+- Read tools: `page`, `limit`, `fields` (row keys to keep: any attribute), `compact` (default `true`; `false` = every attribute), `verbose`, `include_nulls`. Compact rows trim amounts (`"12.5"`) and day-boundary timestamps (`"2026-01-31"`). Transaction sub-lists use the compact transaction rows.
+- Write tools: `data` (API body fields), `confirm`, plus the output flags; create/update echo the compact row.
+- **Delete needs `confirm: true` when the object still has dependants** (transactions, limits, events, links, …): without it the tool returns `{"error":"invalid_argument","field":"confirm","dependants":{..}}` and deletes nothing.
+- API validation errors come back as `{"error":"invalid_argument","field":"data.<api field>","message":..,"errors":{..all API errors..}}`.
+
+| Tool | Extra arguments | Compact row |
+|---|---|---|
+| `budgets-read` | `kind` = `budget` (default) \| `limit` \| `available`; `budget_id` (limits of one budget; required to get a limit); `start`/`end` (spent per period; required for all-limits list) | budget `{id, name, active, auto_budget_*, currency_code, spent}`; limit `{id, budget_id, start, end, period, amount, currency_code, spent}`; available `{id, start, end, amount, currency_code, spent_in_budgets, spent_outside_budgets}` |
+| `budgets-write` | `kind` = `budget` \| `limit`; `budget_id` for limits | as read |
+| `bills-read` | `action` also `transactions`; `start`/`end` add `paid_dates` / `pay_dates` for the period | `{id, name, amount_min, amount_max, currency_code, repeat_freq, skip, active, object_group_title, next_expected_match, paid_dates, pay_dates}` |
+| `bills-write` | — (delete keeps the transactions, unlinked) | as read |
+| `piggy-banks-read` | `action` also `events` | `{id, name, target_amount, current_amount, left_to_save, percentage, currency_code, start_date, target_date, active, object_group_title, accounts}` |
+| `piggy-banks-write` | `action` also `add` \| `remove` with `account_id` + `amount` (same checks as the web form: free balance and target for add, saved amount for remove) | as read |
+| `recurrences-read` | `action` also `transactions` (`start`/`end`) | `{id, type, title, first_date, latest_date, repeat_until, nr_of_repetitions, active, repetitions (with next occurrences), transactions}` |
+| `recurrences-write` | `action` also `trigger` with `date` (creates that occurrence now); updates must resend `transactions` | as read |
+| `currencies-read` | `kind` = `currency` (default, `id` = code or `primary`) \| `rate` (`id` = rate id; list one pair with `from`/`to` + `start`/`end`) | currency `{id, code, name, symbol, decimal_places, enabled, primary}`; rate `{id, from_currency_code, to_currency_code, rate, date}` |
+| `currencies-write` | currency (`id` = code): `create` / `delete` (instance owner only), `update`, `enable`, `disable`, `primary`; rate: `create` (`from`, `to`, `rate`, `date`), `update`, `delete` | as read |
+| `attachments-read` | — (metadata only) | `{id, attachable_type, attachable_id, filename, title, mime, size}` |
+| `attachments-write` | create: `content_base64` (max 512 KiB) + `data.filename`, `attachable_type` (`TransactionJournal`, `Account`, `Bill`, `Budget`, `Category`, `PiggyBank`, `Tag`), `attachable_id`; update: `filename`, `title`, `notes` | as read |
+| `links-read` | `kind` = `link` (default; `journal_id` lists one journal's links) \| `type` | link `{id, link_type_id, inward_id, outward_id, notes}`; type `{id, name, inward, outward, editable}` |
+| `links-write` | link: `link_type_id` or `link_type_name`, `inward_id`, `outward_id` (journal ids), `notes`; `kind: type` (owner only): `name`, `inward`, `outward` | as read |
+| `object-groups-read` | `action` also `piggy-banks` \| `bills` | `{id, title, order}` |
+| `object-groups-write` | `update` (`title`, `order`) \| `delete` only — groups are created via `object_group_title` on a piggy bank or bill | as read |
+| `tags-write` | `id` = tag id or name; `merge` with `into` (moves A's transactions to B, then deletes A) | `{id, tag, date, description}` |
+| `categories-write` | `create` \| `update` \| `merge` (`into`); delete stays `delete-category` | `{id, name, notes}` |
+| `accounts-write` | `create` \| `update` \| `merge` (`into`, same account type; Firefly's delete-with-move); delete stays `delete-account` | `{id, name, type, account_role, currency_code, current_balance, iban, active}` |
+| `webhooks-write` | needs `allow_webhooks`; updates must resend `triggers`, `responses`, `deliveries` | `{id, title, active, url, triggers, responses, deliveries}` (no secret; `verbose` has it) |
+
+### `export-transactions`
+- `start?`, `end?` (default the last year), `accounts?: int[]` (asset accounts, default all), `columns?: string[]` (keep these CSV columns, in this order), `max_bytes?: int` (default 100000, max 1000000)
+- Returns Firefly's own CSV export as text; when cut, the last line is `# truncated: N of M rows shown …`.
 
 ## Resources
 

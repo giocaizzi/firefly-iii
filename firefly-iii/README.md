@@ -5,7 +5,7 @@ Plugin for operating a [Firefly III](https://firefly-iii.org/) personal-finance 
 ## What it ships
 
 - **MCP server registration** (`.mcp.json`) — HTTP transport, Bearer auth via `${FIREFLY_PAT}`, URL via `${FIREFLY_URL}`, plus optional Cloudflare Access service-token headers.
-- **Skill** `firefly-iii` (`skills/firefly-iii/`) — teaches the assistant when to consult Firefly (any finance / money / spending / budget / balance / transaction question) and how to wield the 35-tool surface efficiently. Includes references for the full tool catalog, common workflow recipes, and known gotchas.
+- **Skill** `firefly-iii` (`skills/firefly-iii/`) — teaches the assistant when to consult Firefly (any finance / money / spending / budget / balance / transaction question) and how to wield the 62-tool surface efficiently. Includes references for the full tool catalog, common workflow recipes, and known gotchas.
 - **Slash commands** namespaced under `/firefly-iii:`:
   - `/firefly-iii:summary [period]` — one-shot financial digest
   - `/firefly-iii:spending <period> [category]` — spending breakdown
@@ -15,7 +15,7 @@ Plugin for operating a [Firefly III](https://firefly-iii.org/) personal-finance 
 
 ## Tool surface
 
-41 tools: entity reads (`list-*` / `get-*` for accounts, transactions, budgets, categories, tags, rules, rule groups, bills, piggy banks, webhooks), `search-transactions`, aggregates (`summary-basic`, `insight-expense`, `insight-income`, `chart-data`, `account-balance`), `health` (versions, user, features, write access), transaction writes (create withdrawal/deposit/transfer, update, convert, delete, bulk create), `classify-transactions` (bulk category/budget/bill/tags/notes edits with a dry-run preview), rule tooling (`create-rule`, `update-rule`, `delete-rule`, `create-rule-group`, `update-rule-group`, `test-rule`, `apply-rule`), and account/category delete. The full per-tool reference lives in [`skills/firefly-iii/references/tools.md`](skills/firefly-iii/references/tools.md).
+62 tools: entity reads (`list-*` / `get-*` for accounts, transactions, budgets, categories, tags, rules, rule groups, bills, piggy banks, webhooks), `search-transactions`, aggregates (`summary-basic`, `insight-expense`, `insight-income`, `chart-data`, `account-balance`), `health` (versions, user, features, write access), transaction writes (create withdrawal/deposit/transfer, update, convert, delete, bulk create), `classify-transactions` (bulk category/budget/bill/tags/notes edits with a dry-run preview), rule tooling (`create-rule`, `update-rule`, `delete-rule`, `create-rule-group`, `update-rule-group`, `test-rule`, `apply-rule`), and account/category delete. Every other area has an `<area>-read` (list/get) and `<area>-write` (create/update/delete) pair on Firefly's own REST API: budgets (with budget limits and available budgets), bills/subscriptions, piggy banks (add/remove money), recurring transactions (trigger), currencies and exchange rates, attachments, transaction links and link types, object groups, plus `tags-write`, `categories-write` and `accounts-write` (each with merge), `webhooks-write` and `export-transactions` (CSV). The full per-tool reference lives in [`skills/firefly-iii/references/tools.md`](skills/firefly-iii/references/tools.md).
 
 Output is tuned for token budgets:
 

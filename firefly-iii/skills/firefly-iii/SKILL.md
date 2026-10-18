@@ -1,6 +1,6 @@
 ---
 name: firefly-iii
-description: Use this skill whenever the user asks anything about their personal finances, money, spending, income, account balances, budgets, categories, savings goals, recurring bills, transaction history, or financial reports — even if they don't say "Firefly" by name. Phrases like "how much did I spend on...", "what's my balance", "log a transaction", "how am I doing this month", "show me my expenses", "did the rent come out", "categorize these", "set up a budget" all trigger this skill. The skill teaches the assistant how to drive the Firefly III MCP server (41 tools + 9 resources) to answer finance questions and make changes. Use this skill BEFORE making generic suggestions or guessing — Firefly is the user's source of truth for personal finance data.
+description: Use this skill whenever the user asks anything about their personal finances, money, spending, income, account balances, budgets, categories, savings goals, recurring bills, transaction history, or financial reports — even if they don't say "Firefly" by name. Phrases like "how much did I spend on...", "what's my balance", "log a transaction", "how am I doing this month", "show me my expenses", "did the rent come out", "categorize these", "set up a budget" all trigger this skill. The skill teaches the assistant how to drive the Firefly III MCP server (62 tools + 9 resources) to answer finance questions and make changes. Use this skill BEFORE making generic suggestions or guessing — Firefly is the user's source of truth for personal finance data.
 ---
 
 # Firefly III — operating the MCP endpoint
@@ -9,7 +9,7 @@ The user runs [Firefly III](https://firefly-iii.org/), a self-hosted personal-fi
 
 ## How the tool surface is organized
 
-Six categories. Knowing the shape helps you pick the right tool fast.
+Seven categories. Knowing the shape helps you pick the right tool fast.
 
 | Category | Tools | When to reach for it |
 |---|---|---|
@@ -19,6 +19,7 @@ Six categories. Knowing the shape helps you pick the right tool fast.
 | **Read — aggregates** | `summary-basic`, `insight-expense`, `insight-income`, `chart-data`, `account-balance`, plus `aggregate: true` on `search-transactions` / `list-transactions` and `with_stats: true` on tags | "How am I doing this month", "spending by category", "balance over time" — **prefer these over computing aggregates yourself** from `list-transactions` |
 | **Write** | `create-withdrawal`, `create-deposit`, `create-transfer`, `update-transaction`, `delete-transaction`, `bulk-create-transactions`, `classify-transactions` | Logging new transactions, fixing categorization, removing duplicates, importing batches; `classify-transactions` recategorizes many at once |
 | **Rules** | `create-rule`, `update-rule`, `delete-rule`, `create-rule-group`, `update-rule-group`, `apply-rule` (`test-rule` is the read-only dry run) | Automating categorization: create, dry-run, then apply to past transactions |
+| **Area read / write** | `budgets-read/-write`, `bills-read/-write`, `piggy-banks-read/-write`, `recurrences-read/-write`, `currencies-read/-write`, `attachments-read/-write`, `links-read/-write`, `object-groups-read/-write`, `tags-write`, `categories-write`, `accounts-write`, `webhooks-write`, `export-transactions` | Managing everything else: budget limits, subscriptions and their paid dates, savings, recurring transactions, exchange rates, attachments, links; renaming or merging tags, categories and accounts; CSV exports |
 
 Resources (under URI scheme `firefly-iii://`) give grounding data without API churn:
 
@@ -128,7 +129,7 @@ These come from the MCP server's MVP scope (see `references/gotchas.md` for the 
 
 ## Destructive operations — confirm first
 
-`update-transaction`, `delete-transaction`, `bulk-create-transactions`, `delete-account`, `classify-transactions` with `dry_run: false`, `update-rule`, `update-rule-group` and `apply-rule` change data. Before `apply-rule`, run `test-rule` with the same scope and show the user the count. Before calling them:
+`update-transaction`, `delete-transaction`, `bulk-create-transactions`, `delete-account`, `classify-transactions` with `dry_run: false`, `update-rule`, `update-rule-group`, `apply-rule` and every `*-write` tool change data. Before `apply-rule`, run `test-rule` with the same scope and show the user the count. Before calling them:
 
 1. Echo back what you're about to do: the transaction id(s), the field(s) you're changing, the new value(s).
 2. Wait for the user to confirm.
@@ -147,5 +148,5 @@ The skill body above covers everyday operations. For deeper work, load on demand
 ## What this skill does NOT do
 
 - It doesn't run the Firefly server. The server is the user's self-hosted Firefly III instance (the MCP endpoint at `/api/v1/mcp`).
-- It doesn't manage users, OAuth clients, or admin settings — those are out of scope of the MCP MVP and live in the Firefly web UI.
+- It doesn't manage users, OAuth clients, or admin settings — those are out of scope of the MCP MVP and live in the Firefly web UI. (Creating/deleting currencies and editing link types work, but only for instance owners, as in the REST API.)
 - It doesn't give tax or financial advice. Surface the user's data and let them decide.

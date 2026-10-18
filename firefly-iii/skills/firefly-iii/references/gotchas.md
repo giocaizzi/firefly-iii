@@ -73,13 +73,13 @@ Edge cases and known quirks. Skim once; come back when something behaves unexpec
 ## Feature flags
 
 - `allow_mcp` (instance-wide): when `false`, every MCP call returns `404`. If you start getting 404s on every tool, surface "the admin appears to have disabled MCP on this Firefly instance."
-- `allow_webhooks` (instance-wide): when `false`, `list-webhooks` returns a `404`-style error. Other webhook-adjacent tools are unaffected.
+- `allow_webhooks` (instance-wide): when `false`, `list-webhooks` and `webhooks-write` return the same "Webhooks are not enabled" error. Other tools are unaffected.
 
 ## Authentication
 
 - Bearer Personal Access Token. The plugin's `.mcp.json` injects `Authorization: Bearer ${user_config.firefly_token}`.
 - Token expiry is per Firefly's own PAT lifetime (effectively non-expiring unless revoked). A `401` means the user revoked it or rotated their secret.
-- Tools are scoped to the token owner. There is no admin / superuser surface in MCP MVP.
+- Tools are scoped to the token owner. The only instance-admin actions are the ones the REST API reserves for owners (currency create/delete, link-type writes).
 
 ## Audit logging
 
@@ -89,10 +89,18 @@ Every write logs one line to Firefly's `audit` channel: `{ tool, user_id, transa
 
 The README in places references `currency_code` on create-* — **it is not in the schema** (see "Currency" above). Don't try to pass it.
 
-The MVP doesn't expose:
-- `create-budget`, `create-category`, `create-piggy-bank` (and their update/delete variants)
-- User / admin operations
-- OAuth client management
+The MCP surface doesn't expose:
+- Available-budget writes (the REST API has none either)
+- User / admin operations, OAuth client management
+
+## Area tools (`*-read` / `*-write`)
+
+- They call Firefly's REST API internally, so its rules apply as-is. Two of them want the whole object on update: `recurrences-write` (resend `transactions`) and `webhooks-write` (resend `triggers`, `responses`, `deliveries`). `links-write` fills in the current journal / link-type ids itself, because the API's link update would reset omitted ones.
+- **Deletes with dependants need `confirm: true`.** The first call returns the dependant counts (`dependants`) and deletes nothing; ask the user, then repeat with `confirm: true`.
+- Transaction links and attachments on transactions use **journal ids**, not the transaction (group) id; take it from `get-transaction` with `compact: false` (`transaction_journal_id` on each split).
+- Creating or deleting currencies and writing link types is for instance owners only (REST `api-admin`); other users get an authorization error.
+- Merges (`tags-write`, `categories-write`, `accounts-write`) are irreversible: the source is deleted after its transactions move. Accounts merge only into an account of the same type.
+- `attachments-write` takes at most 512 KiB of decoded content; `export-transactions` output is capped by `max_bytes` and ends with a `# truncated` line when cut.
 
 For any of those, the user has to go to the Firefly web UI.
 
