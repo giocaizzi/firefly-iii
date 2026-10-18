@@ -38,7 +38,7 @@ use Laravel\Mcp\Server\Tools\Annotations\IsIdempotent;
 use Laravel\Mcp\Server\Tools\Annotations\IsReadOnly;
 use League\Fractal\Resource\Item;
 
-#[Description('Get one transaction group by group id.')]
+#[Description('Get one transaction by id.')]
 #[IsReadOnly]
 #[IsIdempotent]
 final class GetTransactionTool extends AbstractMcpTool
@@ -86,7 +86,7 @@ final class GetTransactionTool extends AbstractMcpTool
     public function schema(JsonSchema $schema): array
     {
         return [
-            'id' => $schema->integer()->required()->description('Group id: a row\'s group_id, else its id.'),
+            'id' => $schema->integer()->required()->description('Transaction id (a row\'s id or group_id).'),
             ...$this->transactionOutputSchema($schema)
         ];
     }

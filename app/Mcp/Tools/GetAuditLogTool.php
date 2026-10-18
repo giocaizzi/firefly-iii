@@ -95,7 +95,7 @@ final class GetAuditLogTool extends AbstractMcpTool
     public function schema(JsonSchema $schema): array
     {
         return [
-            'transaction_id' => $schema->integer()->required()->description('Group id.')
+            'transaction_id' => $schema->integer()->required()->description('Transaction id (a row\'s id or group_id).')
         ];
     }
 

@@ -127,7 +127,7 @@ final class ConvertTransactionTool extends AbstractMcpTool
     public function schema(JsonSchema $schema): array
     {
         return [
-            'transaction_id'   => $schema->integer()->required()->description('Group id.'),
+            'transaction_id'   => $schema->integer()->required()->description('Transaction id (a row\'s id or group_id).'),
             'type'             => $schema->string()->enum(self::TYPES)->required()->description('New type.'),
             'source_id'        => $schema->integer()->description('Source account id, if the new type needs another.'),
             'source_name'      => $schema->string()->description('New source account name.'),

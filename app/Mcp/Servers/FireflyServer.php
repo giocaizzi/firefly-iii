@@ -158,8 +158,8 @@ final class FireflyServer extends Server
         Output: compact rows by default, nulls and empty values omitted. `compact=false`
         returns every attribute, `verbose=true` the raw JSON:API document. Lists page with
         `page` / `limit` (default 25, max 200) and report `meta.has_more` / `meta.next_page`.
-        Transaction rows: `id` is the journal id, `group_id` appears only when it differs;
-        tools that take a transaction id want the group id. Amounts are in the primary
+        Transaction rows: `id` is the transaction (group) id every tool accepts; `journal_id`
+        appears only when it differs. Split groups are {group_id, title, splits}. Amounts are in the primary
         currency (`meta.primary_currency`) unless the row has `currency`. Invalid arguments
         return {"error":"invalid_argument","field":..,"message":..}.
         Search syntax: resource firefly-iii://help/search.

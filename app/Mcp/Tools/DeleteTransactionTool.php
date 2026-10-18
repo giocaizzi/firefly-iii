@@ -86,7 +86,7 @@ final class DeleteTransactionTool extends AbstractMcpTool
     public function schema(JsonSchema $schema): array
     {
         return [
-            'transaction_id' => $schema->integer()->required()->description('Group id.'),
+            'transaction_id' => $schema->integer()->required()->description('Transaction id (a row\'s id or group_id).'),
             'verbose'        => $schema->boolean()->description('No effect here.'),
             'include_nulls'  => $schema->boolean()->description('No effect here.')
         ];

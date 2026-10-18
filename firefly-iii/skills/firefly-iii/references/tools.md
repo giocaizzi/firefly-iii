@@ -12,7 +12,9 @@ In addition to the per-tool args below, every read tool accepts:
 
 Tools with a compact default row (transactions, `list-accounts`, `list-rules`, `list-rule-groups`) also accept `compact: bool` (default `true`; `false` returns every attribute in the reduced shape). Transaction read tools (`list-transactions`, `search-transactions`, `get-transaction`) further accept:
 
-- `fields?: string[]` — keep only these row keys (compact keys or raw split keys such as `source_id`, `iban`, `internal_reference`); `id` is always kept
+- `fields?: string[]` — keep only these row keys (compact keys or raw split keys such as `source_id`, `iban`, `internal_reference`); the ids are always kept
+
+Compact transaction rows use `id` = the transaction (group) id every tool accepts and add `journal_id` only when it differs; split groups are `{ group_id, title, splits }` with `journal_id` on each split.
 - `description_max?: int` — description cap, default 120, `0` = no cap
 
 Invalid arguments return `{"error":"invalid_argument","field":..,"message":..}`.
@@ -37,7 +39,7 @@ Invalid arguments return `{"error":"invalid_argument","field":..,"message":..}`.
 - An unknown `account_name` / `account_id` is an error (it no longer silently lists everything)
 
 ### `get-transaction`
-- `id: int` (required) — the group id (a row's `group_id`, else its `id`)
+- `id: int` (required) — the transaction id (a compact row's `id`, or `group_id` for a split group)
 
 ### `list-budgets`
 - `active?: bool`

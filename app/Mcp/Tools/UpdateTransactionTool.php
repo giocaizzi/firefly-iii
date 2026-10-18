@@ -109,7 +109,7 @@ final class UpdateTransactionTool extends AbstractMcpTool
     public function schema(JsonSchema $schema): array
     {
         return [
-            'transaction_id'   => $schema->integer()->required()->description('Group id.'),
+            'transaction_id'   => $schema->integer()->required()->description('Transaction id (a row\'s id or group_id).'),
             'amount'           => $schema->string()->description('Positive decimal string.'),
             'date'             => $schema->string()->description('YYYY-MM-DD or ISO 8601 date-time.'),
             'description'      => $schema->string()->description('1-1000 chars.'),

@@ -30,16 +30,17 @@ use function Safe\preg_match;
  * Compact, token-lean projection of TransactionGroupTransformer JSON:API documents.
  *
  * One flat row per split:
- *   id (journal id), group_id (only when it differs from id), date (YYYY-MM-DD, or
+ *   journal_id, date (YYYY-MM-DD, or
  *   "YYYY-MM-DD HH:MM[:SS]" when the time is not midnight), type, amount (no trailing zeros),
  *   currency (only when it differs from the primary currency), foreign_amount /
  *   foreign_currency (only when set), description (capped), source, destination, category,
  *   budget, bill, tags, notes.
- * Single-split groups are flattened to that row; multi-split groups become
- * {group_id, title, splits: [row, ...]}. Null and empty values are omitted unless
- * `include_nulls` is set.
+ * Single-split groups are flattened to that row under `id` = the group id (the id every
+ * transaction tool accepts), keeping `journal_id` only when it differs; multi-split groups
+ * become {group_id, title, splits: [row, ...]} with `journal_id` on every split. Null and
+ * empty values are omitted unless `include_nulls` is set.
  *
- * `fields` restricts every row to the listed keys (id / group_id are always kept). A field may
+ * `fields` restricts every row to the listed keys (the ids are always kept). A field may
  * be a compact key or any raw split attribute from the transformer (e.g. "source_id", "iban").
  */
 final class TransactionProjector
@@ -132,15 +133,16 @@ final class TransactionProjector
         $splits     = is_array($attributes['transactions'] ?? null) ? array_values($attributes['transactions']) : [];
 
         if (count($splits) <= 1) {
-            $split = $splits[0] ?? [];
-            $row   = $this->projectSplit($split, $primaryCurrency, $fields, $descriptionMax, $includeNulls);
-            $id    = $row['id'] ?? null;
-            if (null !== $id && $id !== $groupId) {
-                // group_id right after id; the row's own `id` key keeps its first position.
-                $row = ['id' => $id, 'group_id' => $groupId, ...$row];
+            $split     = $splits[0] ?? [];
+            $row       = $this->projectSplit($split, $primaryCurrency, $fields, $descriptionMax, $includeNulls);
+            $journalId = $row['journal_id'] ?? null;
+            unset($row['journal_id']);
+            $ids = ['id' => $groupId];
+            if (null !== $journalId && $journalId !== $groupId) {
+                $ids['journal_id'] = $journalId;
             }
 
-            return $row;
+            return [...$ids, ...$row];
         }
 
         $group = ['group_id' => $groupId, 'title' => self::truncate($attributes['group_title'] ?? null, $descriptionMax)];
@@ -171,7 +173,7 @@ final class TransactionProjector
         $tags          = $split['tags'] ?? [];
 
         $row = [
-            'id'               => null !== ($split['transaction_journal_id'] ?? null) ? (int) $split['transaction_journal_id'] : null,
+            'journal_id'       => null !== ($split['transaction_journal_id'] ?? null) ? (int) $split['transaction_journal_id'] : null,
             'date'             => $this->compactDate($split['date'] ?? null),
             'type'             => $split['type'] ?? null,
             'amount'           => self::trimAmount(null !== ($split['amount'] ?? null) ? (string) $split['amount'] : null),
@@ -189,7 +191,7 @@ final class TransactionProjector
         ];
 
         if (null !== $fields) {
-            $selected = ['id' => $row['id']];
+            $selected = ['journal_id' => $row['journal_id']];
             foreach ($fields as $field) {
                 if (array_key_exists($field, $row)) {
                     $selected[$field] = $row[$field];

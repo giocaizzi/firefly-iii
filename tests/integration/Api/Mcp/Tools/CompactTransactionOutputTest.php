@@ -157,6 +157,40 @@ final class CompactTransactionOutputTest extends TestCase
     }
 
     /**
+     * Row `id` is the group id every tool accepts; `journal_id` appears only when it differs.
+     *
+     * @covers \FireflyIII\Mcp\Support\TransactionProjector
+     */
+    public function testGivenJournalIdDiffersFromGroupIdWhenListingThenIdIsGroupIdAndJournalIdIsAdded(): void
+    {
+        $user = $this->createAuthenticatedUser();
+        $this->enablePrimaryCurrency($user);
+        $source = $this->createAccount($user, AccountTypeEnum::ASSET, 'Checking');
+        $shop   = $this->createAccount($user, AccountTypeEnum::EXPENSE, 'Shop');
+        // a two-split group first, so the next group's id and journal id drift apart
+        app(TransactionGroupRepositoryInterface::class)->store([
+            'user'         => $user,
+            'user_group'   => $user->userGroup,
+            'group_title'  => 'Split',
+            'transactions' => [$this->line($source, $shop, '1.00', 'One'), $this->line($source, $shop, '2.00', 'Two')]
+        ]);
+        $single  = $this->storeTransaction($user, $this->line($source, $shop, '3.00', 'Single'));
+        $journal = (int) $single->transactionJournals()->firstOrFail()->id;
+        self::assertNotSame((int) $single->id, $journal);
+
+        $payload = $this->decodeJson($this->invokeTool($user, ListTransactionsTool::class, ['type' => 'withdrawal']));
+        $rows    = array_values(array_filter($payload['data'], static fn(array $row): bool => 'Single' === ($row['description'] ?? null)));
+
+        self::assertSame((int) $single->id, $rows[0]['id']);
+        self::assertSame($journal, $rows[0]['journal_id']);
+        self::assertSame(['id', 'journal_id'], array_slice(array_keys($rows[0]), 0, 2));
+
+        // the row id round-trips into get-transaction
+        $fetched = $this->decodeJson($this->invokeTool($user, GetTransactionTool::class, ['id' => $rows[0]['id']]));
+        self::assertSame('Single', $fetched['data']['description']);
+    }
+
+    /**
      * @covers \FireflyIII\Mcp\Support\TransactionProjector
      */
     public function testGivenLongDescriptionWhenListingThenTruncatesUnlessCapDisabled(): void
@@ -234,6 +268,16 @@ final class CompactTransactionOutputTest extends TestCase
         sort($amounts, SORT_STRING);
         self::assertSame(['10', '5.25'], $amounts);
         self::assertArrayNotHasKey('group_id', $payload['data']['splits'][0]);
+        $journalIds = $group
+            ->transactionJournals()
+            ->pluck('id')
+            ->map(static fn(mixed $id): int => (int) $id)
+            ->sort()
+            ->values()
+            ->all();
+        $splitIds   = array_column($payload['data']['splits'], 'journal_id');
+        sort($splitIds);
+        self::assertSame($journalIds, $splitIds);
     }
 
     /**
