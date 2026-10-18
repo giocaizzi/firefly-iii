@@ -41,9 +41,7 @@ trait AddsTagStats
     protected function tagStatsSchema(JsonSchema $schema): array
     {
         return [
-            'with_stats' => $schema
-                ->boolean()
-                ->description('Add stats: transaction count, first/last date, per-currency sums per type (positive; net = deposit - withdrawal).')
+            'with_stats' => $schema->boolean()->description('Add count, first/last date, per-currency sums.')
         ];
     }
 

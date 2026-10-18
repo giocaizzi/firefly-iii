@@ -76,22 +76,11 @@ trait AggregatesTransactions
         return [
             'aggregate'          => $schema
                 ->boolean()
-                ->description(
-                    'Add `aggregate`: count and per-currency sums over ALL matches (every page). Sums are positive per type; net = deposit - withdrawal; transfers not in net.'
-                ),
-            'group_by'           => $schema
-                ->string()
-                ->enum(TransactionAggregator::GROUP_BY)
-                ->description('Split the aggregate. account = own side (source; destination for deposits). Implies aggregate.'),
-            'include_categories' => $schema
-                ->array()
-                ->items($schema->string())
-                ->description('Aggregate only these categories (ids or names). Implies aggregate.'),
-            'exclude_categories' => $schema
-                ->array()
-                ->items($schema->string())
-                ->description('Leave these categories (ids or names) out of the aggregate. Implies aggregate.'),
-            'rows'               => $schema->boolean()->description('false = aggregate only, no rows. Implies aggregate.')
+                ->description('Add count + per-currency sums over all pages (positive per type; net = deposit - withdrawal).'),
+            'group_by'           => $schema->string()->enum(TransactionAggregator::GROUP_BY)->description('Split the aggregate; account = own side.'),
+            'include_categories' => $schema->array()->items($schema->string())->description('Aggregate only these categories (ids/names).'),
+            'exclude_categories' => $schema->array()->items($schema->string())->description('Leave these categories out of the aggregate.'),
+            'rows'               => $schema->boolean()->description('false = aggregate only.')
         ];
     }
 
