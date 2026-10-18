@@ -60,9 +60,7 @@ use function Safe\json_encode;
  * that already exist, by `external_id` or, with `duplicate_check=amount_date_account`, by signed
  * amount on the item's asset account within `date_window_days`.
  */
-#[Description(
-    'Create up to 100 withdrawals/deposits/transfers atomically. dry_run previews; skip_duplicates skips existing rows; resending the same idempotency_keys replays committed items. Import flow: match-transactions, dry_run, confirm, write, read back.'
-)]
+#[Description('Create up to 100 withdrawals/deposits/transfers atomically. dry_run previews; skip_duplicates skips existing; resent idempotency_keys replay, none duplicate.')]
 #[IsDestructive(false)]
 final class BulkCreateTransactionsTool extends AbstractMcpTool
 {
@@ -158,7 +156,7 @@ final class BulkCreateTransactionsTool extends AbstractMcpTool
                 $duplicateCheck,
                 $windowDays
             );
-            $plan       = $this->planItems($preparedItems, $duplicates, $skipDuplicates);
+            $plan = $this->planItems($preparedItems, $duplicates, $skipDuplicates);
         }
         if ($dryRun) {
             return Response::json($this->dryRunResult($plan));
@@ -284,11 +282,8 @@ final class BulkCreateTransactionsTool extends AbstractMcpTool
             'budget_name'      => $schema->string()->description('Budget name.'),
             'tags'             => $schema->array()->items($schema->string())->description('Tag ids or names.'),
             'notes'            => $schema->string()->description('Notes.'),
-            'idempotency_key'  => $schema
-                ->string()
-                ->max(self::MAX_IDEMPOTENCY_KEY_LENGTH)
-                ->description('Retry dedup key (printable ASCII, max 128); a replay returns the original.'),
-            'external_id'      => $schema->string()->description('Stored external id; used by skip_duplicates.')
+            'idempotency_key'  => $schema->string()->max(self::MAX_IDEMPOTENCY_KEY_LENGTH)->description('Retry dedup key (printable ASCII, max 128); a replay returns the original.'),
+            'external_id'      => $schema->string()->description('External id.')
         ]);
 
         return [
@@ -300,13 +295,10 @@ final class BulkCreateTransactionsTool extends AbstractMcpTool
                 ->required()
                 ->description(sprintf('1-%d items; any failure rolls back the batch.', self::MAX_ITEMS)),
             ...$this->createMissingSchema($schema),
-            'dry_run'          => $schema->boolean()->description('Return the plan (create/replay/skip with reasons); write nothing.'),
-            'skip_duplicates'  => $schema->boolean()->description('Leave out items that already exist (see duplicate_check).'),
-            'duplicate_check'  => $schema
-                ->string()
-                ->enum(['external_id', 'amount_date_account'])
-                ->description('external_id (default) = same external_id; amount_date_account = also same amount+account in the window.'),
-            'date_window_days' => $schema->integer()->description(sprintf('Window for amount_date_account, default 0, max %d.', self::MAX_DATE_WINDOW_DAYS)),
+            'dry_run'          => $schema->boolean()->description('Plan only, no writes.'),
+            'skip_duplicates'  => $schema->boolean()->description('Skip existing items.'),
+            'duplicate_check'  => $schema->string()->enum(['external_id', 'amount_date_account'])->description('Default external_id.'),
+            'date_window_days' => $schema->integer()->description(sprintf('Default 0, max %d.', self::MAX_DATE_WINDOW_DAYS)),
             ...$this->writeOutputSchema($schema)
         ];
     }

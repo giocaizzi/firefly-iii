@@ -47,9 +47,7 @@ use function Safe\preg_match;
  * Intended import flow: match-transactions → bulk-create-transactions with dry_run=true and
  * skip_duplicates=true → user confirms → the same call without dry_run → read back.
  */
-#[Description(
-    'Match structured external rows (date, signed amount, account, optional external_id) to existing transactions, one-to-one: matched|ambiguous|unmatched. Import flow: match, bulk-create dry_run, confirm, write, read back.'
-)]
+#[Description('Match parsed rows to existing transactions one-to-one (matched|ambiguous|unmatched). Import: match, bulk-create dry_run, confirm, write.')]
 #[IsReadOnly]
 #[IsIdempotent]
 final class MatchTransactionsTool extends AbstractMcpTool
@@ -122,27 +120,27 @@ final class MatchTransactionsTool extends AbstractMcpTool
     public function schema(JsonSchema $schema): array
     {
         $row = $schema->object([
-            'ref'         => $schema->string()->description('Caller label echoed back; default the row index.'),
+            'ref'         => $schema->string()->description('Echoed label.'),
             'date'        => $schema->string()->required()->description('YYYY-MM-DD.'),
-            'amount'      => $schema->string()->required()->description('Signed decimal on the account: negative = money out.'),
-            'direction'   => $schema->string()->enum(['in', 'out'])->description('Sign for an unsigned amount.'),
-            'currency'    => $schema->string()->description('ISO code; also matches the foreign amount.'),
-            'account'     => $schema->string()->description('Account id or exact name; overrides the scope.'),
+            'amount'      => $schema->string()->required()->description('Signed; negative = out.'),
+            'direction'   => $schema->string()->enum(['in', 'out'])->description('Sign for unsigned amount.'),
+            'currency'    => $schema->string()->description('ISO code.'),
+            'account'     => $schema->string()->description('Account id or name.'),
             'description' => $schema->string()->description('Tie-break only.'),
-            'external_id' => $schema->string()->description('Matched against reference_field first.')
+            'external_id' => $schema->string()->description('Compared with reference_field.')
         ]);
 
         return [
             'rows'             => $schema->array()->items($row)->min(1)->max(self::MAX_ROWS)->required()->description(sprintf('1-%d rows.', self::MAX_ROWS)),
-            'date_window_days' => $schema->integer()->description(sprintf('Max date distance, default 0, max %d.', self::MAX_DATE_WINDOW_DAYS)),
-            'account'          => $schema->string()->description('Scope: account id or exact name.'),
-            'accounts'         => $schema->array()->items($schema->string())->description('Scope: account ids or names. Default every asset account.'),
-            'amount_tolerance' => $schema->string()->description('Max absolute amount difference, default 0.'),
+            'date_window_days' => $schema->integer()->description(sprintf('Default 0, max %d.', self::MAX_DATE_WINDOW_DAYS)),
+            'account'          => $schema->string()->description('Scope: account id or name.'),
+            'accounts'         => $schema->array()->items($schema->string())->description('Scope; default all asset accounts.'),
+            'amount_tolerance' => $schema->string()->description('Default 0.'),
             'types'            => $schema
                 ->array()
                 ->items($schema->string()->enum(array_keys(self::MATCH_TYPES)))
                 ->description('Default withdrawal, deposit, transfer.'),
-            'reference_field'  => $schema->string()->enum(self::REFERENCE_FIELDS)->description('Field compared with row external_id, default external_id.'),
+            'reference_field'  => $schema->string()->enum(self::REFERENCE_FIELDS)->description('Default external_id.'),
             ...$this->transactionOutputSchema($schema)
         ];
     }
