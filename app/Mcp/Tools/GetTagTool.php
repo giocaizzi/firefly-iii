@@ -24,6 +24,7 @@ declare(strict_types=1);
 
 namespace FireflyIII\Mcp\Tools;
 
+use FireflyIII\Mcp\Tools\Concerns\AddsTagStats;
 use FireflyIII\Repositories\Tag\TagRepositoryInterface;
 use FireflyIII\Transformers\TagTransformer;
 use FireflyIII\User;
@@ -40,6 +41,8 @@ use League\Fractal\Resource\Item;
 #[IsIdempotent]
 final class GetTagTool extends AbstractMcpTool
 {
+    use AddsTagStats;
+
     public function handle(Request $request): Response
     {
         /** @var User $user */
@@ -64,7 +67,7 @@ final class GetTagTool extends AbstractMcpTool
         $transformer = app(TagTransformer::class);
         $resource    = new Item($tag, $transformer, 'tags');
 
-        $document = $this->jsonApiManager()->createData($resource)->toArray();
+        $document = $this->withTagStats($this->jsonApiManager()->createData($resource)->toArray(), $user, $request);
 
         return $this->respondJsonApi($document, $request);
     }
@@ -77,6 +80,7 @@ final class GetTagTool extends AbstractMcpTool
         return [
             'id'  => $schema->integer()->description('Tag id (wins over tag).'),
             'tag' => $schema->string()->description('Exact tag.'),
+            ...$this->tagStatsSchema($schema),
             ...$this->outputFlagsSchema($schema)
         ];
     }
