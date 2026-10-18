@@ -34,7 +34,8 @@ use Tests\integration\Api\Mcp\Concerns\SeedsFireflyData;
 use Tests\integration\TestCase;
 
 /**
- * Covers DeleteAccountTool — plain delete, merge-into-other-account, and error paths.
+ * Covers DeleteAccountTool — plain delete, merge-into-other-account, the delete_transactions
+ * guard, and error paths.
  *
  * @internal
  *
@@ -46,6 +47,38 @@ final class DeleteAccountToolTest extends TestCase
     use EnsuresPassportKeys;
     use InvokesMcpServer;
     use SeedsFireflyData;
+
+    /**
+     * @covers \FireflyIII\Mcp\Tools\DeleteAccountTool
+     */
+    public function testGivenAccountWithTransactionsWhenDeletingWithFlagThenRemoved(): void
+    {
+        $user        = $this->createAuthenticatedUser();
+        $account     = $this->createAccount($user, AccountTypeEnum::ASSET, 'Busy');
+        $destination = $this->createAccount($user, AccountTypeEnum::EXPENSE, 'Shop');
+        $this->createWithdrawal($user, $account, $destination, '1.00', 'One');
+
+        $this->invokeTool($user, DeleteAccountTool::class, ['account_id' => $account->id, 'delete_transactions' => true])->assertOk();
+
+        self::assertNull(Account::find($account->id));
+    }
+
+    /**
+     * @covers \FireflyIII\Mcp\Tools\DeleteAccountTool
+     */
+    public function testGivenAccountWithTransactionsWhenDeletingWithoutFlagThenRefusedWithCount(): void
+    {
+        $user        = $this->createAuthenticatedUser();
+        $account     = $this->createAccount($user, AccountTypeEnum::ASSET, 'Busy');
+        $destination = $this->createAccount($user, AccountTypeEnum::EXPENSE, 'Shop');
+        $this->createWithdrawal($user, $account, $destination, '1.00', 'One');
+        $this->createWithdrawal($user, $account, $destination, '2.00', 'Two');
+
+        $response = $this->invokeTool($user, DeleteAccountTool::class, ['account_id' => $account->id]);
+        $response->assertHasErrors(['has 2 transaction(s)', 'delete_transactions=true']);
+
+        self::assertNotNull(Account::find($account->id), 'Account must survive.');
+    }
 
     /**
      * @covers \FireflyIII\Mcp\Tools\DeleteAccountTool
@@ -74,24 +107,11 @@ final class DeleteAccountToolTest extends TestCase
     /**
      * @covers \FireflyIII\Mcp\Tools\DeleteAccountTool
      */
-    public function testGivenMoveToWhenDeletingThenTransactionsMovedAndAccountRemoved(): void
+    public function testGivenMissingAccountWhenDeletingThenRespondsWithError(): void
     {
-        $user        = $this->createAuthenticatedUser();
-        $source      = $this->createAccount($user, AccountTypeEnum::ASSET, 'Phantom');
-        $keep        = $this->createAccount($user, AccountTypeEnum::ASSET, 'Real');
-        $destination = $this->createAccount($user, AccountTypeEnum::EXPENSE, 'Shop');
-        $group       = $this->createWithdrawal($user, $source, $destination, '15.00', 'Spend');
-
-        $response = $this->invokeTool($user, DeleteAccountTool::class, [
-            'account_id'         => $source->id,
-            'move_to_account_id' => $keep->id
-        ]);
-        $response->assertOk();
-
-        self::assertNull(Account::find($source->id), 'Source account should be deleted.');
-        $movedAccountId = (int) $group->transactionJournals()->first()
-            ->transactions()->where('amount', '<', 0)->first()->account_id;
-        self::assertSame($keep->id, $movedAccountId, 'Withdrawal source should now be the kept account.');
+        $user     = $this->createAuthenticatedUser();
+        $response = $this->invokeTool($user, DeleteAccountTool::class, ['account_id' => 999_999]);
+        $response->assertHasErrors(['not found']);
     }
 
     /**
@@ -111,11 +131,23 @@ final class DeleteAccountToolTest extends TestCase
     /**
      * @covers \FireflyIII\Mcp\Tools\DeleteAccountTool
      */
-    public function testGivenMissingAccountWhenDeletingThenRespondsWithError(): void
+    public function testGivenMoveToWhenDeletingThenTransactionsMovedAndAccountRemoved(): void
     {
-        $user     = $this->createAuthenticatedUser();
-        $response = $this->invokeTool($user, DeleteAccountTool::class, ['account_id' => 999_999]);
-        $response->assertHasErrors(['not found']);
+        $user        = $this->createAuthenticatedUser();
+        $source      = $this->createAccount($user, AccountTypeEnum::ASSET, 'Phantom');
+        $keep        = $this->createAccount($user, AccountTypeEnum::ASSET, 'Real');
+        $destination = $this->createAccount($user, AccountTypeEnum::EXPENSE, 'Shop');
+        $group       = $this->createWithdrawal($user, $source, $destination, '15.00', 'Spend');
+
+        $response = $this->invokeTool($user, DeleteAccountTool::class, [
+            'account_id'         => $source->id,
+            'move_to_account_id' => $keep->id
+        ]);
+        $response->assertOk();
+
+        self::assertNull(Account::find($source->id), 'Source account should be deleted.');
+        $movedAccountId = (int) $group->transactionJournals()->first()->transactions()->where('amount', '<', 0)->first()->account_id;
+        self::assertSame($keep->id, $movedAccountId, 'Withdrawal source should now be the kept account.');
     }
 
     protected function setUp(): void

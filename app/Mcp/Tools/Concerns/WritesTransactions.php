@@ -27,6 +27,7 @@ namespace FireflyIII\Mcp\Tools\Concerns;
 use Carbon\Carbon;
 use FireflyIII\Api\V1\Requests\Models\Transaction\StoreRequest;
 use FireflyIII\Helpers\Collector\GroupCollectorInterface;
+use FireflyIII\Mcp\Support\CreatedEntities;
 use FireflyIII\Models\TransactionGroup;
 use FireflyIII\Models\TransactionJournal;
 use FireflyIII\Models\TransactionJournalMeta;
@@ -54,6 +55,8 @@ use function Safe\preg_match;
  */
 trait WritesTransactions
 {
+    use GuardsNameCreation;
+
     public const string IDEMPOTENCY_META_NAME = 'mcp_idempotency_key';
 
     public const int MAX_IDEMPOTENCY_KEY_LENGTH = 128;
@@ -196,7 +199,13 @@ trait WritesTransactions
         }
 
         /** @var User $user */
-        $user                  = auth()->user();
+        $user = auth()->user();
+        if (!$this->createMissingArg($request) && [] !== ($missing = $this->missingNames($user, ucfirst($type), $line))) {
+            $this->auditWriteFailure('validation', 'Unknown names with create_missing=false');
+
+            return $this->missingNamesError($missing);
+        }
+        $created               = CreatedEntities::mark($user);
         $payload['user']       = $user;
         $payload['user_group'] = $user->userGroup;
 
@@ -220,7 +229,7 @@ trait WritesTransactions
             'idempotent_replay' => false
         ]);
 
-        return $this->respondJsonApi($this->buildGroupDocument($group), $request);
+        return $this->respondJsonApi($this->buildGroupDocument($group), $request, $this->createdMeta($created));
     }
 
     /**

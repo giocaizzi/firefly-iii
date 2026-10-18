@@ -51,4 +51,7 @@ return [
     'custom_schemes' => [],
 
     'authorization_server' => env('APP_URL'),
+
+    // MCP build identifier reported by the health tool (e.g. a git sha baked into the image).
+    'build' => env('MCP_BUILD'),
 ];

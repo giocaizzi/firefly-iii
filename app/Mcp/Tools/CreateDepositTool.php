@@ -68,6 +68,7 @@ final class CreateDepositTool extends AbstractMcpTool
                 ->string()
                 ->max(self::MAX_IDEMPOTENCY_KEY_LENGTH)
                 ->description('Retry dedup key (printable ASCII, max 128); a replay returns the original.'),
+            ...$this->createMissingSchema($schema),
             ...$this->writeOutputSchema($schema)
         ];
     }

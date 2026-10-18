@@ -42,12 +42,16 @@ use function Safe\preg_match;
  *
  * `fields` restricts every row to the listed keys (the ids are always kept). A field may
  * be a compact key or any raw split attribute from the transformer (e.g. "source_id", "iban").
+ * The group timestamps `created_at` / `updated_at` are only emitted when listed in `fields`;
+ * `updated_at` is the value write tools accept as `if_unmodified_since`.
  */
 final class TransactionProjector
 {
     public const int DEFAULT_DESCRIPTION_MAX = 120;
 
     private const string ELLIPSIS = '…';
+
+    private const array GROUP_FIELDS = ['created_at', 'updated_at'];
 
     /**
      * Strip trailing zeros from a decimal string: "12.500000000000" -> "12.5", "3.000" -> "3".
@@ -131,6 +135,10 @@ final class TransactionProjector
         $attributes = is_array($item['attributes'] ?? null) ? $item['attributes'] : $item;
         $groupId    = (int) ($item['id'] ?? $attributes['id'] ?? 0);
         $splits     = is_array($attributes['transactions'] ?? null) ? array_values($attributes['transactions']) : [];
+        $timestamps = [];
+        foreach (array_intersect(self::GROUP_FIELDS, $fields ?? []) as $field) {
+            $timestamps[$field] = $attributes[$field] ?? null;
+        }
 
         if (count($splits) <= 1) {
             $split     = $splits[0] ?? [];
@@ -142,10 +150,10 @@ final class TransactionProjector
                 $ids['journal_id'] = $journalId;
             }
 
-            return [...$ids, ...$row];
+            return $this->prune([...$ids, ...$row, ...$timestamps], $includeNulls);
         }
 
-        $group = ['group_id' => $groupId, 'title' => self::truncate($attributes['group_title'] ?? null, $descriptionMax)];
+        $group = ['group_id' => $groupId, 'title' => self::truncate($attributes['group_title'] ?? null, $descriptionMax), ...$timestamps];
         $group = $this->prune($group, $includeNulls);
 
         $group['splits'] = array_map(fn(array $split): array => $this->projectSplit(

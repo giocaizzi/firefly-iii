@@ -36,6 +36,7 @@ use FireflyIII\Mcp\Resources\UserCategoriesResource;
 use FireflyIII\Mcp\Resources\UserTagsResource;
 use FireflyIII\Mcp\Tools\BulkCreateTransactionsTool;
 use FireflyIII\Mcp\Tools\ChartDataTool;
+use FireflyIII\Mcp\Tools\ClassifyTransactionsTool;
 use FireflyIII\Mcp\Tools\ConvertTransactionTool;
 use FireflyIII\Mcp\Tools\CreateDepositTool;
 use FireflyIII\Mcp\Tools\CreateTransferTool;
@@ -51,6 +52,7 @@ use FireflyIII\Mcp\Tools\GetCategoryTool;
 use FireflyIII\Mcp\Tools\GetRuleTool;
 use FireflyIII\Mcp\Tools\GetTagTool;
 use FireflyIII\Mcp\Tools\GetTransactionTool;
+use FireflyIII\Mcp\Tools\HealthTool;
 use FireflyIII\Mcp\Tools\InsightExpenseTool;
 use FireflyIII\Mcp\Tools\InsightIncomeTool;
 use FireflyIII\Mcp\Tools\ListAccountsTool;
@@ -84,7 +86,7 @@ final class FireflyServer extends Server
     protected string $version;
 
     /**
-     * Override laravel/mcp's default page size (15) so all 33 MCP tools land in a single
+     * Override laravel/mcp's default page size (15) so all 35 MCP tools land in a single
      * tools/list response. Many MCP clients — Claude Code's SDK among them — do NOT
      * automatically follow nextCursor, which silently hides the trailing tools (aggregates
      * + writes) from the agent. Keeping the entire surface visible after one round-trip
@@ -114,6 +116,7 @@ final class FireflyServer extends Server
         ListPiggyBanksTool::class,
         ListWebhooksTool::class,
         GetAuditLogTool::class,
+        HealthTool::class,
         // aggregates
         SummaryBasicTool::class,
         InsightExpenseTool::class,
@@ -127,6 +130,7 @@ final class FireflyServer extends Server
         DeleteTransactionTool::class,
         ConvertTransactionTool::class,
         BulkCreateTransactionsTool::class,
+        ClassifyTransactionsTool::class,
         // rule management
         UpdateRuleTool::class,
         DeleteRuleTool::class,

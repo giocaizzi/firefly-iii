@@ -21,14 +21,24 @@ Edge cases and known quirks. Skim once; come back when something behaves unexpec
 - Keys are stored as `mcp_idempotency_key` journal meta — they survive across MCP sessions and across server restarts.
 - Max length 128 chars, must be printable ASCII. Server rejects malformed keys.
 - Replay returns the original transaction's reduced envelope; the response carries `idempotent_replay: true` so you know it was a replay vs a fresh create.
+- **After a timeout on `bulk-create-transactions`**, resend the identical batch with the same keys: if the first call committed, every keyed item comes back `replayed: true` with its original transaction; if it rolled back, the items are created now. Nothing is duplicated either way.
 - `update-transaction` is marked `IsIdempotent` by MCP spec, but it does NOT use the idempotency-key mechanism — repeated calls just re-apply the same patch. `delete-transaction` is NOT idempotent: a second call on the same id returns "Transaction not found".
 
 ## Account roles
 
 - **Withdrawal:** source must be `asset`, destination must be `expense`. If the destination name doesn't exist, Firefly auto-creates an expense account with that name.
 - **Deposit:** source must be `revenue`, destination must be `asset`. Source auto-creation works the same way.
+- **Auto-created names are reported.** Every write lists the accounts, categories and tags it created in `meta.created` (absent when nothing was created) — a typo shows up there. Pass `create_missing: false` to get a `missing_names` error instead; nothing is written. Budgets and bills are never auto-created.
 - **Transfer:** both source and destination must be `asset`, **same currency**.
 - Passing wrong roles surfaces a validation error from `StoreTransactionRequest::rules()`. Surface that error verbatim to the user — it's actionable.
+
+## Concurrent edits
+
+- `update-transaction` (`if_unmodified_since: "<updated_at>"`) and `classify-transactions` (`if_unmodified_since: {"<id>": "<updated_at>"}`) refuse to write a transaction changed after the `updated_at` you read; the error / row status is `conflict`. Get `updated_at` from any transaction read with `fields: ["updated_at"]` (not in the default row). Precision is one second.
+
+## Deleting accounts
+
+- `delete-account` without `move_to_account_id` on an account that has transactions errors with the transaction count unless `delete_transactions: true` is passed. Prefer `move_to_account_id` to merge duplicates.
 
 ## Pagination
 

@@ -41,9 +41,10 @@ use Throwable;
  * When `move_to_account_id` is supplied, the account's transactions are re-homed onto
  * that account before deletion; otherwise the account's transactions (and any recurring
  * transactions using it) are removed. Use the move target to merge phantom/duplicate
- * accounts into the correct one without losing history.
+ * accounts into the correct one without losing history. Deleting an account that still has
+ * transactions without a move target requires `delete_transactions=true`.
  */
-#[Description('Delete an account. With move_to_account_id its transactions move there first (merge); without it they are deleted.')]
+#[Description('Delete an account. move_to_account_id merges its transactions first; otherwise deleting them needs delete_transactions=true.')]
 #[IsDestructive]
 final class DeleteAccountTool extends AbstractMcpTool
 {
@@ -74,6 +75,17 @@ final class DeleteAccountTool extends AbstractMcpTool
             $moveTo = $repository->find($moveToId);
             if (null === $moveTo) {
                 return Response::error(sprintf('Move-to account #%d not found.', $moveToId));
+            }
+        }
+
+        if (!$moveTo instanceof Account && true !== (bool) ($input['delete_transactions'] ?? false)) {
+            $count = $account->transactions()->distinct()->count('transaction_journal_id');
+            if ($count > 0) {
+                return Response::error(sprintf(
+                    'Account #%d has %d transaction(s). Pass move_to_account_id to keep them, or delete_transactions=true to delete them with the account.',
+                    $accountId,
+                    $count
+                ));
             }
         }
 
@@ -110,8 +122,9 @@ final class DeleteAccountTool extends AbstractMcpTool
     public function schema(JsonSchema $schema): array
     {
         return [
-            'account_id'         => $schema->integer()->required()->description('Account id.'),
-            'move_to_account_id' => $schema->integer()->description('Account that receives the transactions first (merge).')
+            'account_id'          => $schema->integer()->required()->description('Account id.'),
+            'move_to_account_id'  => $schema->integer()->description('Account that receives the transactions first (merge).'),
+            'delete_transactions' => $schema->boolean()->description('true = also delete its transactions.')
         ];
     }
 }

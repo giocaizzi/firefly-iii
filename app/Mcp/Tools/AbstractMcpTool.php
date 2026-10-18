@@ -242,17 +242,20 @@ abstract class AbstractMcpTool extends Tool
      * Uses Response::json() so the text content is the JSON payload. Tools that also declare
      * an outputSchema may wrap this Response with Response::structured() in their own handle().
      * Paginated shapes gain `meta.has_more` and `meta.next_page`; verbose output is untouched.
+     * `$extraMeta` (e.g. a write's `created`) is merged into `meta` in every mode.
      *
      * @param array<string, mixed> $jsonApiDocument
+     * @param array<string, mixed> $extraMeta
      */
-    protected function respondJsonApi(array $jsonApiDocument, Request $request): Response
+    protected function respondJsonApi(array $jsonApiDocument, Request $request, array $extraMeta = []): Response
     {
         $verbose = (bool) $request->get('verbose', false);
-        if ($verbose) {
-            return Response::json($jsonApiDocument);
+        $result  = $verbose ? $jsonApiDocument : $this->withPagingHints($this->shape($jsonApiDocument, $request));
+        if ([] !== $extraMeta) {
+            $result['meta'] = [...(is_array($result['meta'] ?? null) ? $result['meta'] : []), ...$extraMeta];
         }
 
-        return Response::json($this->withPagingHints($this->shape($jsonApiDocument, $request)));
+        return Response::json($result);
     }
 
     /**
