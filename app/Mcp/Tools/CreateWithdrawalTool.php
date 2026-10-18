@@ -66,6 +66,7 @@ final class CreateWithdrawalTool extends AbstractMcpTool
             'budget_name'      => $schema->string()->description('Budget name.'),
             'tags'             => $schema->array()->items($schema->string())->description('Tag names or ids.'),
             'notes'            => $schema->string()->description('Notes.'),
+            ...$this->optionalLineSchema($schema),
             'idempotency_key'  => $schema
                 ->string()
                 ->max(self::MAX_IDEMPOTENCY_KEY_LENGTH)
