@@ -1,6 +1,6 @@
 ---
 name: firefly-iii
-description: Use this skill whenever the user asks anything about their personal finances, money, spending, income, account balances, budgets, categories, savings goals, recurring bills, transaction history, or financial reports — even if they don't say "Firefly" by name. Phrases like "how much did I spend on...", "what's my balance", "log a transaction", "how am I doing this month", "show me my expenses", "did the rent come out", "categorize these", "set up a budget" all trigger this skill. The skill teaches the assistant how to drive the Firefly III MCP server (35 tools + 9 resources) to answer finance questions and make changes. Use this skill BEFORE making generic suggestions or guessing — Firefly is the user's source of truth for personal finance data.
+description: Use this skill whenever the user asks anything about their personal finances, money, spending, income, account balances, budgets, categories, savings goals, recurring bills, transaction history, or financial reports — even if they don't say "Firefly" by name. Phrases like "how much did I spend on...", "what's my balance", "log a transaction", "how am I doing this month", "show me my expenses", "did the rent come out", "categorize these", "set up a budget" all trigger this skill. The skill teaches the assistant how to drive the Firefly III MCP server (41 tools + 9 resources) to answer finance questions and make changes. Use this skill BEFORE making generic suggestions or guessing — Firefly is the user's source of truth for personal finance data.
 ---
 
 # Firefly III — operating the MCP endpoint
@@ -9,15 +9,16 @@ The user runs [Firefly III](https://firefly-iii.org/), a self-hosted personal-fi
 
 ## How the tool surface is organized
 
-Five categories. Knowing the shape helps you pick the right tool fast.
+Six categories. Knowing the shape helps you pick the right tool fast.
 
 | Category | Tools | When to reach for it |
 |---|---|---|
 | **Read — core entities** | `list-accounts`, `get-account`, `list-transactions`, `get-transaction`, `list-budgets`, `get-budget`, `list-categories`, `get-category`, `list-tags`, `get-tag` | Direct lookups: "what accounts do I have", "show that transaction from yesterday", "list my categories" |
 | **Read — search** | `search-transactions` | Free-text or operator search: "find that Amazon refund", "transactions with note 'tax 2025'" |
-| **Read — power-user** | `list-bills`, `list-rules`, `get-rule`, `list-rule-groups`, `list-piggy-banks`, `list-webhooks`, `get-audit-log`, `health` | Recurring bills, transaction rules, savings targets, integrations; `health` checks versions, features and write access |
-| **Read — aggregates** | `summary-basic`, `insight-expense`, `insight-income`, `chart-data` | "How am I doing this month", "spending by category", "balance over time" — **prefer these over computing aggregates yourself** from `list-transactions` |
+| **Read — power-user** | `list-bills`, `list-rules`, `get-rule`, `list-rule-groups`, `test-rule`, `list-piggy-banks`, `list-webhooks`, `get-audit-log`, `health` | Recurring bills, transaction rules, savings targets, integrations; `health` checks versions, features and write access |
+| **Read — aggregates** | `summary-basic`, `insight-expense`, `insight-income`, `chart-data`, `account-balance`, plus `aggregate: true` on `search-transactions` / `list-transactions` and `with_stats: true` on tags | "How am I doing this month", "spending by category", "balance over time" — **prefer these over computing aggregates yourself** from `list-transactions` |
 | **Write** | `create-withdrawal`, `create-deposit`, `create-transfer`, `update-transaction`, `delete-transaction`, `bulk-create-transactions`, `classify-transactions` | Logging new transactions, fixing categorization, removing duplicates, importing batches; `classify-transactions` recategorizes many at once |
+| **Rules** | `create-rule`, `update-rule`, `delete-rule`, `create-rule-group`, `update-rule-group`, `apply-rule` (`test-rule` is the read-only dry run) | Automating categorization: create, dry-run, then apply to past transactions |
 
 Resources (under URI scheme `firefly-iii://`) give grounding data without API churn:
 
@@ -37,7 +38,7 @@ Escape hatches: `compact: false` returns every attribute in the reduced shape, `
 
 ## Picking the right tool — decision rules
 
-1. **"How am I doing" / "what did I spend on X" / "income this quarter"** → reach for an **aggregate** tool (`summary-basic`, `insight-expense`, `insight-income`, `chart-data`). Don't list transactions and sum them yourself; the aggregate tools already do that work server-side.
+1. **"How am I doing" / "what did I spend on X" / "income this quarter"** → reach for an **aggregate** tool (`summary-basic`, `insight-expense`, `insight-income`, `chart-data`), or `search-transactions` / `list-transactions` with `aggregate: true` (and `group_by`, `rows: false`) for any filter the query language can express. Balance on a past date → `account-balance`. Don't page through transactions and sum them yourself; the server sums every match.
 
 2. **A specific transaction the user can name** ("the Amazon one from Tuesday", "find that $43.20 charge") → `search-transactions` with a free-text query. Fold dates into the query as `date_after:YYYY-MM-DD date_before:YYYY-MM-DD` operators or pass `start`/`end` args (the server will inject them).
 
@@ -127,7 +128,7 @@ These come from the MCP server's MVP scope (see `references/gotchas.md` for the 
 
 ## Destructive operations — confirm first
 
-`update-transaction`, `delete-transaction`, `bulk-create-transactions`, `delete-account` and `classify-transactions` with `dry_run: false` change data. Before calling them:
+`update-transaction`, `delete-transaction`, `bulk-create-transactions`, `delete-account`, `classify-transactions` with `dry_run: false`, `update-rule`, `update-rule-group` and `apply-rule` change data. Before `apply-rule`, run `test-rule` with the same scope and show the user the count. Before calling them:
 
 1. Echo back what you're about to do: the transaction id(s), the field(s) you're changing, the new value(s).
 2. Wait for the user to confirm.

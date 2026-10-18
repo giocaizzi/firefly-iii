@@ -36,6 +36,7 @@ Invalid arguments return `{"error":"invalid_argument","field":..,"message":..}`.
 - `account_id?: int` or `account_name?: string`
 - `type?: enum` ∈ `{withdrawal, deposit, transfer, opening_balance, reconciliation, all, default}`
 - `page?: int`, `limit?: int`
+- Aggregate args (see below)
 - An unknown `account_name` / `account_id` is an error (it no longer silently lists everything)
 
 ### `get-transaction`
@@ -50,12 +51,14 @@ Invalid arguments return `{"error":"invalid_argument","field":..,"message":..}`.
 
 ### `list-categories`, `list-tags`
 - `page?: int`, `limit?: int`
+- `list-tags` only: `with_stats?: bool` — adds `stats` per tag (see `get-tag`)
 
 ### `get-category`
 - One of `id?: int` or `name?: string` required
 
 ### `get-tag`
 - One of `id?: int` or `tag?: string` required
+- `with_stats?: bool` — adds `stats: { count, first_date?, last_date?, totals? }`; `totals` as in the aggregate below
 
 ## Read — search
 
@@ -63,6 +66,15 @@ Invalid arguments return `{"error":"invalid_argument","field":..,"message":..}`.
 - `query: string` (required) — Firefly's search-operator grammar (`amount_more:`, `date_after:`, `category_is:`, etc.); full syntax and operator list in the `firefly-iii://help/search` resource. Unknown operators are listed in `meta.warnings`.
 - `start?: date`, `end?: date` — folded into the query as `date_after:` / `date_before:` if not already present
 - `page?: int`, `limit?: int`
+- Aggregate args (see below)
+
+### Aggregate args (`search-transactions`, `list-transactions`)
+- `aggregate?: bool` — adds `aggregate: { count, totals, group_by?, groups? }` computed over **every** match, not just the page
+- `group_by?: enum` ∈ `{month, category, tag, source, destination, account, type}` — `groups: [{ key, id?, count, totals }]`; `account` = the own side (source; destination for deposits); `(none)` collects uncategorized / untagged rows
+- `include_categories?: string[]`, `exclude_categories?: string[]` — category ids or names (case-insensitive); filter the aggregate only
+- `rows?: bool` — `false` returns `{ aggregate, meta }` without rows
+- Setting any of `group_by`, the category lists or `rows` implies `aggregate: true`
+- `totals: [{ currency, count, withdrawal, deposit, transfer?, net }]` — positive sums per type in the transaction's currency; `net` = deposit − withdrawal
 
 ## Read — power-user
 
@@ -85,6 +97,16 @@ Invalid arguments return `{"error":"invalid_argument","field":..,"message":..}`.
 - Compact row: `{ id, title, description?, active, order }`
 
 Rule titles and descriptions come back HTML-decoded (`&` rather than `&amp;`); `verbose: true` keeps the stored value.
+
+### `test-rule`
+- `rule_id?: int` or `rule_group_id?: int` (the group's active rules) — one required
+- `start?: date`, `end?: date`, `transaction_ids?: int[]` (group ids), `account_ids?: int[]` — narrow the dry run
+- `page?: int`, `limit?: int`, transaction output args
+- Compact transaction rows of every match the rule(s) would act on; `meta.count` = total matches. Changes nothing.
+
+### `get-audit-log`
+- `transaction_id: int` (required)
+- `{ transaction_id, count, entries: [{ id, scope, journal_id, action, before, after, before_inferred?, changer_type, changer_id, created_at }] }`
 
 ### `list-piggy-banks`, `list-webhooks`
 - `page?: int`, `limit?: int`
@@ -115,6 +137,11 @@ Note: `list-webhooks` honors the instance-wide `allow_webhooks` flag — returns
 - `chart_type: enum` ∈ `{account_balances, category_expenses, budget_vs_actual}` (required)
 - `start: date` (required), `end: date` (required)
 - Returns: chart-row array; each row carries its own `currency_code`.
+
+### `account-balance`
+- `account_id?: int` and/or `account_ids?: int[]` (max 50) — asset, cash or liability accounts
+- `date?: date` and/or `dates?: date[]` (max 60) — default today
+- Returns: `{ data: [{ account_id, name, type, currency, entries: [{ date, balances: { <code>: amount } }] }] }` — balance at the end of each day, per currency, virtual balance included (same as the account overview)
 
 ## Write tools
 
@@ -185,6 +212,32 @@ Bulk classification edits; never touches amounts, dates, currencies, description
 - `delete_transactions?: bool` — required (`true`) to delete an account that still has transactions without a move target; otherwise the call errors with the transaction count
 
 Every transaction write tool echoes the compact row (`compact: false` / `verbose: true` for the full shapes).
+
+## Rule tools
+
+Trigger `type` is a search operator (see `firefly-iii://help/search`); prefix it with `-` or pass `prohibited: true` to negate. Action `type` is one of Firefly's rule actions (`set_category`, `add_tag`, `set_source_account`, …; an unknown type lists the allowed ones). Values are validated like the REST API (numbers for `amount_*`, existing budget/bill names, …).
+
+### `create-rule`
+- `title: string` (required, unique), `rule_group_id?: int` or `rule_group_title?: string` (one required, must exist)
+- `triggers: [{ type, value?, prohibited?, active?, stop_processing? }]`, `actions: [{ type, value?, active?, stop_processing? }]` — at least one active each
+- `strict?: bool` (default false = any trigger), `trigger?: enum` ∈ `{store-journal, update-journal, manual-activation}` (default store-journal), `active?`, `stop_processing?`, `description?`, `order?`
+
+### `update-rule`
+- `rule_id: int` (required); only passed fields change; `triggers` / `actions` replace the whole set
+
+### `delete-rule`
+- `rule_id: int` (required)
+
+### `create-rule-group`
+- `title: string` (required, unique), `description?`, `active?` (default true), `order?` (default last)
+
+### `update-rule-group`
+- `rule_group_id: int` (required), any of `title?`, `description?`, `order?`, `active?`
+
+### `apply-rule`
+- `rule_id?: int` or `rule_group_id?: int` — one required
+- Scope required: `start?`, `end?`, `transaction_ids?: int[]`, `account_ids?: int[]`
+- Returns `{ rule_ids, affected }` — `affected` = transactions changed. Group rules fire one by one; `stop_processing` does not stop the group (as in the REST API).
 
 ## Resources
 
