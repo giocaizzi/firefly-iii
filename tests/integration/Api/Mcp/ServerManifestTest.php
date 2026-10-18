@@ -67,6 +67,7 @@ final class ServerManifestTest extends TestCase
         'get-rule-tool',
         'get-tag-tool',
         'get-transaction-tool',
+        'health-tool',
         'insight-expense-tool',
         'insight-income-tool',
         'list-accounts-tool',
